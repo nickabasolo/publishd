@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { Settings as SettingsIcon } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { Avatar } from '@/components/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -10,9 +11,9 @@ import { useFollows } from '@/hooks/use-follows'
 import { useMyComments } from '@/hooks/use-comments'
 import { useLikes } from '@/hooks/use-likes'
 import { useMyParagraphLikes } from '@/hooks/use-paragraph-likes'
-import { getPerson, fakeStatsFor } from '@/data/people'
+import { useDataClient } from '@/lib/data'
 import { stories } from '@/data'
-import { buildActivity, seededCommentsBy } from '@/lib/activity'
+import { buildActivity } from '@/lib/activity'
 import { useAuthPrompt } from '@/context/auth-prompt'
 
 export function ProfilePage() {
@@ -24,8 +25,21 @@ export function ProfilePage() {
   const myComments = useMyComments(handle)
   const likes = useLikes()
   const myParagraphLikes = useMyParagraphLikes()
+  const client = useDataClient()
 
   const isSelf = handle === user.username
+
+  const otherProfile = useQuery({
+    queryKey: ['profiles', 'byHandle', handle],
+    queryFn: () => client.profiles.getByHandle(handle),
+    enabled: Boolean(handle) && !isSelf,
+  })
+  const otherStats = useQuery({
+    queryKey: ['profiles', 'stats', handle],
+    queryFn: () => client.profiles.getStats(handle),
+    enabled: Boolean(handle) && !isSelf,
+  })
+
   const isGuestSelf = isSelf && isGuest
 
   const selfStorySlugs = stories
@@ -41,9 +55,18 @@ export function ProfilePage() {
         isAuthor: selfStorySlugs.length > 0,
         storySlugs: selfStorySlugs,
       }
-    : getPerson(handle)
+    : {
+        handle,
+        name: otherProfile.data?.displayName ?? `@${handle}`,
+        avatarColor: otherProfile.data?.avatarColor ?? '#94a3b8',
+        bio: otherProfile.data?.bio ?? '',
+        isAuthor: otherProfile.data?.isAuthor ?? false,
+        storySlugs: otherProfile.data?.author?.publishedStoryIds ?? [],
+      }
 
-  const stats = isSelf ? myStats : fakeStatsFor(handle)
+  const stats = isSelf
+    ? myStats
+    : (otherStats.data ?? { booksRead: 0, chaptersRead: 0, minutesRead: 0, dayStreak: 0 })
 
   const activity = isSelf
     ? buildActivity({
@@ -57,7 +80,7 @@ export function ProfilePage() {
     : buildActivity({
         handle,
         isSelf: false,
-        comments: seededCommentsBy(handle),
+        comments: myComments,
         publishedSlugs: person.storySlugs,
       })
 

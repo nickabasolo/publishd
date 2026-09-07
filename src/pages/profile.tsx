@@ -113,6 +113,15 @@ export function ProfilePage() {
               </Button>
             )}
           </div>
+
+          {isSelf && person.isAuthor && (
+            <Link
+              to="/studio"
+              className="mt-3 font-sans text-sm font-medium text-ink-soft hover:text-ink dark:text-stone-400"
+            >
+              Manage your stories →
+            </Link>
+          )}
         </header>
 
         {/* Stats */}

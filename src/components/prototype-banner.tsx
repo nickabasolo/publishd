@@ -1,12 +1,12 @@
-import { useNavigate } from 'react-router-dom'
 import { FlaskConical } from 'lucide-react'
 import { Segmented } from '@/components/ui/segmented'
-import { usePrototype } from '@/context/prototype'
-import type { Persona } from '@/lib/types'
+import { useAccount } from '@/context/account'
+import { useUser } from '@/hooks/use-user'
+import type { AccountId } from '@/data/accounts'
 
 const OPTIONS = [
-  { value: 'reader' as Persona, label: 'Reader' },
-  { value: 'author' as Persona, label: 'Author' },
+  { value: 'reader' as AccountId, label: 'Reader' },
+  { value: 'author' as AccountId, label: 'Author' },
 ]
 
 // Warm-gray diagonal "construction" stripes — signals this is a prototyping tool.
@@ -14,13 +14,8 @@ const STRIPES =
   'repeating-linear-gradient(45deg, rgba(120,113,108,0.22) 0 9px, rgba(120,113,108,0) 9px 22px)'
 
 export function PrototypeBanner() {
-  const { persona, setPersona } = usePrototype()
-  const navigate = useNavigate()
-
-  function handleChange(next: Persona) {
-    setPersona(next)
-    navigate(next === 'author' ? '/author' : '/')
-  }
+  const { accountId, setAccountId } = useAccount()
+  const { user } = useUser()
 
   return (
     <div
@@ -33,14 +28,14 @@ export function PrototypeBanner() {
       </div>
       <div className="flex items-center gap-2 bg-surface/90 px-2 py-1 backdrop-blur-sm dark:bg-surface-night/90">
         <span className="hidden font-sans text-xs text-ink-soft sm:inline dark:text-stone-400">
-          Viewing as
+          Signed in as {user.displayName}
         </span>
         <Segmented
-          aria-label="Prototype persona"
+          aria-label="Prototype account"
           size="sm"
           options={OPTIONS}
-          value={persona}
-          onChange={handleChange}
+          value={accountId}
+          onChange={setAccountId}
         />
       </div>
     </div>

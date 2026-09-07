@@ -83,7 +83,6 @@ export interface Comment {
   replies: CommentReply[]
 }
 
-export type Persona = 'reader' | 'author'
 
 export type ThemePref = 'light' | 'dark' | 'system'
 export type FontSizePref = 'sm' | 'base' | 'lg' | 'xl'

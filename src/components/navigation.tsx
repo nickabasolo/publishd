@@ -1,6 +1,5 @@
-import { Home, Heart, User, LayoutDashboard, BookMarked, BarChart3 } from 'lucide-react'
+import { Home, Heart, PenLine, User } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
-import { usePrototype } from '@/context/prototype'
 import { useUser } from '@/hooks/use-user'
 import { cn } from '@/lib/utils'
 
@@ -10,27 +9,24 @@ interface NavItem {
   icon: typeof Home
 }
 
-const AUTHOR_ITEMS: NavItem[] = [
-  { label: 'Dashboard', href: '/author#dashboard', icon: LayoutDashboard },
-  { label: 'Stories', href: '/author#stories', icon: BookMarked },
-  { label: 'Analytics', href: '/author#analytics', icon: BarChart3 },
-]
-
 export function Navigation() {
   const location = useLocation()
-  const { persona } = usePrototype()
   const { user } = useUser()
 
-  const readerItems: NavItem[] = [
+  // One nav for everyone — a reader-type account just has an empty Studio.
+  const navItems: NavItem[] = [
     { label: 'Home', href: '/', icon: Home },
     { label: 'Likes', href: '/likes', icon: Heart },
+    { label: 'Write', href: '/studio', icon: PenLine },
     { label: 'Profile', href: `/u/${user.username}`, icon: User },
   ]
-  const navItems = persona === 'author' ? AUTHOR_ITEMS : readerItems
 
-  // Exact match — the Profile tab is only "active" on your *own* profile,
-  // not when viewing someone else's.
-  const isActive = (href: string) => location.pathname === href.split('#')[0]
+  const isActive = (href: string) => {
+    const path = href.split('#')[0]
+    if (path === '/studio') return location.pathname.startsWith('/studio')
+    // Profile tab is only "active" on your own profile, not someone else's.
+    return location.pathname === path
+  }
 
   return (
     <>

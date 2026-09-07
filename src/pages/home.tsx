@@ -21,14 +21,14 @@ export function HomePage() {
         <div className="mt-8 flex gap-3">
           <button
             type="button"
-            onClick={() => navigate('/author')}
+            onClick={() => navigate('/studio')}
             className="border border-ink/25 px-5 py-2.5 font-sans text-sm font-medium hover:bg-ink/5 dark:border-white/20 dark:hover:bg-white/5"
           >
             Learn more
           </button>
           <button
             type="button"
-            onClick={() => navigate('/author')}
+            onClick={() => navigate('/studio')}
             className="bg-ink px-5 py-2.5 font-sans text-sm font-medium text-paper hover:bg-ink/90 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-100/90"
           >
             Post a chapter

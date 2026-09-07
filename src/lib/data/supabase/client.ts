@@ -1,29 +1,38 @@
-// SupabaseDataClient — Phase 2: read paths + auth.
+// SupabaseDataClient — Phase 2 (read paths + auth) + Phase 3 (writes).
 //
-// Scope (per the Phase 2 task): stories.feed/getBySlug/byTag/search/allTags,
+// Phase 2 implemented: stories.feed/getBySlug/byTag/search/allTags,
 // chapters.get, comments.list/count/countsForChapter/mine, profiles.getByHandle,
 // notifications.list/unreadCount/markRead/markAllRead, and auth.getAccountId.
-// Everything else (comments.add/reply, likes.*.toggle, follows.*.toggle,
-// reading.*, studio.*, profiles.updateMe/getStats/updateMyStats,
-// auth.switchAccount) is Phase 3 (writes) and still throws via `notImplemented`.
 //
-// IMPORTANT: none of this has been run against the live database — see the
-// handoff report for why (no anon key configured in this environment) and
-// exactly what to check once one is filled in.
+// Phase 3 (this pass) implements: comments.add/reply, likes.*, follows.*,
+// reading.*, studio.*, profiles.updateMe. A few methods remain
+// `notImplemented` because there is no real backing store for them yet —
+// see the comments at each site (profiles.getStats/getMyStats/updateMyStats,
+// auth.switchAccount).
+//
+// IMPORTANT: none of this has been run against a live authenticated session
+// (no OAuth session available in this environment) — see the handoff report
+// for what's verified vs. unverified.
 import type { DataClient } from '../client'
 import type {
   ChapterCommentCounts,
+  ChapterState,
   Comment,
+  InProgressRead,
   Notification,
   Page,
   Profile,
   ProfileSummary,
   Story,
+  StoryStatus,
+  StudioChapter,
+  StudioStory,
 } from '../types'
 import { getSession } from './auth'
 import {
   toChapter,
   toComment,
+  toCommentReply,
   toNotification,
   toProfile,
   toProfileSummary,
@@ -41,15 +50,9 @@ import { supabase } from './supabase-browser'
 
 function notImplemented(method: string): never {
   throw new Error(
-    `[data/supabase] "${method}" is not implemented yet — writes land in Phase 3. ` +
+    `[data/supabase] "${method}" is not implemented — see the Phase 3 handoff report for why. ` +
       `Set VITE_DATA_BACKEND=local (the default) until then.`,
   )
-}
-
-function stubResource<T extends object>(name: string, methods: (keyof T)[]): T {
-  const stub = {} as Record<string, unknown>
-  for (const m of methods) stub[m as string] = () => notImplemented(`${name}.${String(m)}`)
-  return stub as T
 }
 
 const COMMENT_AUTHOR_SELECT = 'id, username, display_name, avatar_color'
@@ -60,6 +63,31 @@ const COMMENT_SELECT = `id, author_id, body, created_at, deleted_at, author:prof
 async function currentUserId(): Promise<string | null> {
   const session = await getSession()
   return session?.user.id ?? null
+}
+
+async function requireUserId(): Promise<string> {
+  const id = await currentUserId()
+  if (!id) throw new Error('[data/supabase] sign-in required for this action')
+  return id
+}
+
+// Anonymous session id for guest read_events (append-only reading analytics
+// per the plan; guests can read without an account). Persisted in
+// localStorage directly rather than via src/lib/storage.ts's readLocal/
+// writeLocal, since those are keyed to the local-adapter's demo-account
+// namespacing and this needs to survive across signed-in/guest transitions.
+const ANON_SESSION_KEY = 'publishd.anonSessionId'
+function anonSessionId(): string {
+  try {
+    let id = localStorage.getItem(ANON_SESSION_KEY)
+    if (!id) {
+      id = crypto.randomUUID()
+      localStorage.setItem(ANON_SESSION_KEY, id)
+    }
+    return id
+  } catch {
+    return 'unknown-session'
+  }
 }
 
 async function getStoryRowBySlug(slug: string): Promise<StoryRow | null> {
@@ -216,6 +244,108 @@ async function storiesToPage(rows: StoryRow[], nextCursor: string | null): Promi
 }
 
 const STORY_COLUMNS = 'id, slug, author_id, title, blurb, synopsis, cover_color, status, is_published, updated_at'
+
+// ---- studio helpers -------------------------------------------------------
+
+interface StudioStoryRow {
+  id: string
+  slug: string
+  title: string
+  blurb: string
+  synopsis: string
+  cover_color: string
+  status: string
+}
+
+async function getOwnStudioStoryRow(slug: string, userId: string): Promise<StudioStoryRow | null> {
+  const { data, error } = await supabase
+    .from('stories')
+    .select('id, slug, title, blurb, synopsis, cover_color, status')
+    .eq('slug', slug)
+    .eq('author_id', userId)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+/** First writer of a tag's display casing wins (plan: "Content" / tags). Insert-and-ignore-conflict, then look up by slug. */
+async function ensureTagId(displayName: string): Promise<string> {
+  const trimmed = displayName.trim()
+  const slug = trimmed.toLowerCase()
+  const { error: insertErr } = await supabase.from('tags').insert({ slug, display_name: trimmed })
+  if (insertErr && insertErr.code !== '23505') throw insertErr // 23505 = unique_violation: tag already exists, expected
+  const { data, error } = await supabase.from('tags').select('id').eq('slug', slug).single()
+  if (error) throw error
+  return data.id
+}
+
+async function fetchStudioStoryTags(storyId: string): Promise<string[]> {
+  const { data, error } = await supabase.from('story_tags').select('tag:tags(display_name)').eq('story_id', storyId)
+  if (error) throw error
+  return ((data ?? []) as { tag: { display_name: string } | { display_name: string }[] | null }[])
+    .map((r) => (Array.isArray(r.tag) ? r.tag[0]?.display_name : r.tag?.display_name))
+    .filter((s): s is string => Boolean(s))
+}
+
+async function fetchStudioChapters(storyId: string): Promise<StudioChapter[]> {
+  const { data: rows, error } = await supabase
+    .from('chapters')
+    .select('id, number, title, state, hidden, locked, word_count, scheduled_at, created_at')
+    .eq('story_id', storyId)
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  const chapterRows = rows ?? []
+  if (chapterRows.length === 0) return []
+
+  const { data: paras, error: pErr } = await supabase
+    .from('paragraphs')
+    .select('chapter_id, ordinal, body')
+    .in(
+      'chapter_id',
+      chapterRows.map((c) => c.id),
+    )
+    .is('deleted_at', null)
+  if (pErr) throw pErr
+  const byChapter = new Map<string, ParagraphRow[]>()
+  for (const p of paras ?? []) {
+    const list = byChapter.get(p.chapter_id) ?? []
+    list.push({ ordinal: p.ordinal, body: p.body })
+    byChapter.set(p.chapter_id, list)
+  }
+
+  return chapterRows.map((c, i) => ({
+    id: c.id,
+    // Unpublished chapters have no assigned `number` (see 0003_content.sql —
+    // it's only ever set at publish). Falling back to creation order here is
+    // purely cosmetic display numbering for the Studio chapter list, never
+    // written back to the DB and never confused with the real, permanent
+    // `number` a chapter gets on publish.
+    number: c.number ?? i + 1,
+    title: c.title,
+    body: (byChapter.get(c.id) ?? [])
+      .sort((a, b) => a.ordinal - b.ordinal)
+      .map((p) => p.body)
+      .join('\n\n'),
+    state: c.state as ChapterState,
+    scheduledAt: c.scheduled_at ? new Date(c.scheduled_at).getTime() : undefined,
+    locked: c.locked,
+    wordCount: c.word_count,
+  }))
+}
+
+async function buildStudioStory(row: StudioStoryRow): Promise<StudioStory> {
+  const [tags, chapters] = await Promise.all([fetchStudioStoryTags(row.id), fetchStudioChapters(row.id)])
+  return {
+    slug: row.slug,
+    title: row.title,
+    blurb: row.blurb,
+    synopsis: row.synopsis,
+    tags,
+    coverColor: row.cover_color,
+    status: row.status as StoryStatus,
+    chapters,
+  }
+}
 
 async function commentAnchorTotal(chapterId: string, paragraphId: string | null): Promise<number> {
   let q = supabase.from('comments').select('*', { count: 'exact', head: true }).eq('chapter_id', chapterId).is('deleted_at', null)
@@ -431,27 +561,528 @@ export const supabaseDataClient: DataClient = {
       }
     },
 
-    add: () => notImplemented('comments.add'),
-    reply: () => notImplemented('comments.reply'),
+    async add(anchor, body) {
+      const userId = await requireUserId()
+      const resolved = await resolveAnchor(anchor)
+      if (!resolved) throw new Error(`[data/supabase] comment anchor "${anchor}" does not resolve to a visible chapter`)
+      const text = body.trim()
+
+      // body_snapshot: the plan describes this as "captured at insert time",
+      // but no migration actually populates it server-side (checked 0004,
+      // 0010, 0011 — the column exists, no trigger writes it). Captured
+      // client-side here instead: not security-sensitive (worst case is a
+      // stale/wrong snapshot string, not an authz bypass), and resolveAnchor
+      // already has the paragraph id in hand. Flagged in the handoff report
+      // as a real gap — this belongs in a before-insert trigger.
+      let snapshot: string | null = null
+      if (resolved.paragraphId) {
+        const { data: para, error: paraErr } = await supabase
+          .from('paragraphs')
+          .select('body')
+          .eq('id', resolved.paragraphId)
+          .maybeSingle()
+        if (paraErr) throw paraErr
+        snapshot = para?.body ? para.body.slice(0, 200) : null
+      }
+
+      const { data, error } = await supabase
+        .from('comments')
+        .insert({
+          author_id: userId,
+          chapter_id: resolved.chapterId,
+          paragraph_id: resolved.paragraphId,
+          body: text,
+          body_snapshot: snapshot,
+        })
+        .select(COMMENT_SELECT)
+        .single()
+      if (error) throw error
+      return toComment(data as CommentRow)
+    },
+
+    async reply(commentId, body) {
+      const userId = await requireUserId()
+      const { data: parent, error: parentErr } = await supabase
+        .from('comments')
+        .select('chapter_id, paragraph_id, body_snapshot')
+        .eq('id', commentId)
+        .single()
+      if (parentErr) throw parentErr
+
+      const text = body.trim()
+      const { data, error } = await supabase
+        .from('comments')
+        .insert({
+          author_id: userId,
+          chapter_id: parent.chapter_id,
+          paragraph_id: parent.paragraph_id,
+          parent_id: commentId,
+          body: text,
+          // Replies anchor to the same paragraph as their parent, so they
+          // share its snapshot rather than needing one of their own — a
+          // reply has no independent anchor to snapshot from.
+          body_snapshot: parent.body_snapshot,
+        })
+        // The `enforce_one_level_comment_nesting` trigger (0004_social.sql)
+        // rejects this insert with a DB error if `commentId` itself already
+        // has a parent_id — surfaced to the caller as-is, not re-checked here.
+        .select(`id, author_id, body, created_at, deleted_at, author:profiles(${COMMENT_AUTHOR_SELECT})`)
+        .single()
+      if (error) throw error
+      return toCommentReply(data as CommentRow)
+    },
   },
 
   likes: {
-    story: stubResource<DataClient['likes']['story']>('likes.story', ['has', 'toggle', 'mine']),
-    paragraph: stubResource<DataClient['likes']['paragraph']>('likes.paragraph', ['has', 'baseCount', 'toggle', 'forChapter', 'mine']),
+    story: {
+      async has(slug) {
+        const userId = await currentUserId()
+        if (!userId) return false
+        const story = await getStoryRowBySlug(slug)
+        if (!story) return false
+        const { data, error } = await supabase
+          .from('story_likes')
+          .select('profile_id')
+          .eq('profile_id', userId)
+          .eq('target_id', story.id)
+          .maybeSingle()
+        if (error) throw error
+        return data != null
+      },
+      async toggle(slug) {
+        const userId = await requireUserId()
+        const story = await getStoryRowBySlug(slug)
+        if (!story) throw new Error(`[data/supabase] story "${slug}" not found`)
+        const { data: existing, error: exErr } = await supabase
+          .from('story_likes')
+          .select('profile_id')
+          .eq('profile_id', userId)
+          .eq('target_id', story.id)
+          .maybeSingle()
+        if (exErr) throw exErr
+        if (existing) {
+          const { error } = await supabase
+            .from('story_likes')
+            .delete()
+            .eq('profile_id', userId)
+            .eq('target_id', story.id)
+          if (error) throw error
+          return false
+        }
+        const { error } = await supabase.from('story_likes').insert({ profile_id: userId, target_id: story.id })
+        if (error) throw error
+        return true
+      },
+      async mine() {
+        const userId = await currentUserId()
+        if (!userId) return []
+        const { data, error } = await supabase
+          .from('story_likes')
+          .select('story:stories(slug)')
+          .eq('profile_id', userId)
+        if (error) throw error
+        return ((data ?? []) as { story: { slug: string } | { slug: string }[] | null }[])
+          .map((r) => (Array.isArray(r.story) ? r.story[0]?.slug : r.story?.slug))
+          .filter((s): s is string => Boolean(s))
+      },
+    },
+    paragraph: {
+      async has(anchor) {
+        const userId = await currentUserId()
+        if (!userId) return false
+        const resolved = await resolveAnchor(anchor)
+        if (!resolved?.paragraphId) return false
+        const { data, error } = await supabase
+          .from('paragraph_likes')
+          .select('profile_id')
+          .eq('profile_id', userId)
+          .eq('target_id', resolved.paragraphId)
+          .maybeSingle()
+        if (error) throw error
+        return data != null
+      },
+      async baseCount(anchor) {
+        const resolved = await resolveAnchor(anchor)
+        if (!resolved?.paragraphId) return 0
+        const userId = await currentUserId()
+        const [{ count, error }, mine] = await Promise.all([
+          supabase
+            .from('paragraph_likes')
+            .select('*', { count: 'exact', head: true })
+            .eq('target_id', resolved.paragraphId),
+          userId
+            ? supabase
+                .from('paragraph_likes')
+                .select('profile_id')
+                .eq('profile_id', userId)
+                .eq('target_id', resolved.paragraphId)
+                .maybeSingle()
+            : Promise.resolve({ data: null }),
+        ])
+        if (error) throw error
+        // Matches the local adapter's seed-baseline semantics: total minus
+        // the caller's own like, since callers add their own toggle on top.
+        return Math.max(0, (count ?? 0) - (mine.data ? 1 : 0))
+      },
+      async toggle(anchor) {
+        const userId = await requireUserId()
+        const resolved = await resolveAnchor(anchor)
+        if (!resolved?.paragraphId) throw new Error(`[data/supabase] paragraph anchor "${anchor}" not found`)
+        const { data: existing, error: exErr } = await supabase
+          .from('paragraph_likes')
+          .select('profile_id')
+          .eq('profile_id', userId)
+          .eq('target_id', resolved.paragraphId)
+          .maybeSingle()
+        if (exErr) throw exErr
+        if (existing) {
+          const { error } = await supabase
+            .from('paragraph_likes')
+            .delete()
+            .eq('profile_id', userId)
+            .eq('target_id', resolved.paragraphId)
+          if (error) throw error
+          return false
+        }
+        const { error } = await supabase
+          .from('paragraph_likes')
+          .insert({ profile_id: userId, target_id: resolved.paragraphId })
+        if (error) throw error
+        return true
+      },
+      async forChapter(slug, chapterNumber) {
+        const story = await getStoryRowBySlug(slug)
+        if (!story) return {}
+        const { data: chapter, error: chErr } = await supabase
+          .from('chapters')
+          .select('id')
+          .eq('story_id', story.id)
+          .eq('number', chapterNumber)
+          .eq('state', 'published')
+          .eq('hidden', false)
+          .maybeSingle()
+        if (chErr) throw chErr
+        if (!chapter) return {}
+
+        const { data: paras, error: pErr } = await supabase
+          .from('paragraphs')
+          .select('id, ordinal')
+          .eq('chapter_id', chapter.id)
+          .is('deleted_at', null)
+        if (pErr) throw pErr
+        const paragraphRows = paras ?? []
+        if (paragraphRows.length === 0) return {}
+        const paragraphIds = paragraphRows.map((p) => p.id)
+
+        const userId = await currentUserId()
+        const { data: likeRows, error: lErr } = await supabase
+          .from('paragraph_likes')
+          .select('profile_id, target_id')
+          .in('target_id', paragraphIds)
+        if (lErr) throw lErr
+
+        const totals = new Map<string, number>()
+        const likedByMe = new Set<string>()
+        for (const row of likeRows ?? []) {
+          totals.set(row.target_id, (totals.get(row.target_id) ?? 0) + 1)
+          if (userId && row.profile_id === userId) likedByMe.add(row.target_id)
+        }
+
+        const result: Record<number, { liked: boolean; total: number }> = {}
+        for (const p of paragraphRows) {
+          result[p.ordinal] = { liked: likedByMe.has(p.id), total: totals.get(p.id) ?? 0 }
+        }
+        return result
+      },
+      async mine() {
+        const userId = await currentUserId()
+        if (!userId) return []
+        const { data, error } = await supabase
+          .from('paragraph_likes')
+          .select('paragraph:paragraphs(ordinal, chapter:chapters(number, story:stories(slug)))')
+          .eq('profile_id', userId)
+        if (error) throw error
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return ((data ?? []) as any[])
+          .map((r) => {
+            const paragraph = Array.isArray(r.paragraph) ? r.paragraph[0] : r.paragraph
+            const chapter = paragraph ? (Array.isArray(paragraph.chapter) ? paragraph.chapter[0] : paragraph.chapter) : null
+            const story = chapter ? (Array.isArray(chapter.story) ? chapter.story[0] : chapter.story) : null
+            if (!paragraph || !chapter || !story) return null
+            return `${story.slug}/${chapter.number}/${paragraph.ordinal}`
+          })
+          .filter((a): a is string => Boolean(a))
+      },
+    },
   },
 
   follows: {
-    story: stubResource<DataClient['follows']['story']>('follows.story', ['isFollowing', 'toggle']),
-    author: stubResource<DataClient['follows']['author']>('follows.author', ['isFollowing', 'toggle', 'mine']),
+    story: {
+      async isFollowing(slug) {
+        const userId = await currentUserId()
+        if (!userId) return false
+        const story = await getStoryRowBySlug(slug)
+        if (!story) return false
+        const { data, error } = await supabase
+          .from('story_follows')
+          .select('profile_id')
+          .eq('profile_id', userId)
+          .eq('target_id', story.id)
+          .maybeSingle()
+        if (error) throw error
+        return data != null
+      },
+      async toggle(slug) {
+        const userId = await requireUserId()
+        const story = await getStoryRowBySlug(slug)
+        if (!story) throw new Error(`[data/supabase] story "${slug}" not found`)
+        const { data: existing, error: exErr } = await supabase
+          .from('story_follows')
+          .select('profile_id')
+          .eq('profile_id', userId)
+          .eq('target_id', story.id)
+          .maybeSingle()
+        if (exErr) throw exErr
+        if (existing) {
+          const { error } = await supabase
+            .from('story_follows')
+            .delete()
+            .eq('profile_id', userId)
+            .eq('target_id', story.id)
+          if (error) throw error
+          return false
+        }
+        const { error } = await supabase.from('story_follows').insert({ profile_id: userId, target_id: story.id })
+        if (error) throw error
+        return true
+      },
+    },
+    author: {
+      async isFollowing(handle) {
+        const userId = await currentUserId()
+        if (!userId) return false
+        const { data: profile, error: pErr } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', handle)
+          .maybeSingle()
+        if (pErr) throw pErr
+        if (!profile) return false
+        const { data, error } = await supabase
+          .from('author_follows')
+          .select('follower_id')
+          .eq('follower_id', userId)
+          .eq('author_id', profile.id)
+          .maybeSingle()
+        if (error) throw error
+        return data != null
+      },
+      async toggle(handle) {
+        const userId = await requireUserId()
+        const { data: profile, error: pErr } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', handle)
+          .maybeSingle()
+        if (pErr) throw pErr
+        if (!profile) throw new Error(`[data/supabase] author "${handle}" not found`)
+        const { data: existing, error: exErr } = await supabase
+          .from('author_follows')
+          .select('follower_id')
+          .eq('follower_id', userId)
+          .eq('author_id', profile.id)
+          .maybeSingle()
+        if (exErr) throw exErr
+        if (existing) {
+          const { error } = await supabase
+            .from('author_follows')
+            .delete()
+            .eq('follower_id', userId)
+            .eq('author_id', profile.id)
+          if (error) throw error
+          return false
+        }
+        // `check (follower_id <> author_id)` on the table rejects self-follow;
+        // let that DB error surface rather than re-checking it here.
+        const { error } = await supabase
+          .from('author_follows')
+          .insert({ follower_id: userId, author_id: profile.id })
+        if (error) throw error
+        return true
+      },
+      async mine() {
+        const userId = await currentUserId()
+        if (!userId) return []
+        const { data, error } = await supabase
+          .from('author_follows')
+          .select('author:profiles(username)')
+          .eq('follower_id', userId)
+        if (error) throw error
+        return ((data ?? []) as { author: { username: string } | { username: string }[] | null }[])
+          .map((r) => (Array.isArray(r.author) ? r.author[0]?.username : r.author?.username))
+          .filter((s): s is string => Boolean(s))
+      },
+    },
   },
 
-  reading: stubResource<DataClient['reading']>('reading', [
-    'getProgress',
-    'inProgress',
-    'startChapter',
-    'completeChapter',
-    'dismiss',
-  ]),
+  reading: {
+    async getProgress(storyId) {
+      const userId = await currentUserId()
+      if (!userId) return null
+      const story = await getStoryRowBySlug(storyId)
+      if (!story) return null
+      const { data, error } = await supabase
+        .from('reading_progress')
+        .select('chapter_number, completed, updated_at')
+        .eq('profile_id', userId)
+        .eq('story_id', story.id)
+        .maybeSingle()
+      if (error) throw error
+      if (!data) return null
+      return {
+        storyId,
+        chapterNumber: data.chapter_number ?? 0,
+        completed: data.completed,
+        updatedAt: new Date(data.updated_at).getTime(),
+      }
+    },
+
+    async inProgress(params) {
+      const userId = await currentUserId()
+      if (!userId) return emptyPage<InProgressRead>()
+      const { rows, nextCursor } = await fetchPage<{
+        chapter_number: number | null
+        completed: boolean
+        updated_at: string
+        story: StoryRow | StoryRow[] | null
+      }>(
+        supabase
+          .from('reading_progress')
+          .select(`chapter_number, completed, updated_at, story:stories(${STORY_COLUMNS})`)
+          .eq('profile_id', userId)
+          .eq('completed', false)
+          .order('updated_at', { ascending: false }),
+        params,
+      )
+      const items = await Promise.all(
+        rows.map(async (row): Promise<InProgressRead | null> => {
+          const storyRow = Array.isArray(row.story) ? row.story[0] : row.story
+          if (!storyRow) return null
+          const { rows: chapterRows, paragraphs } = await fetchPublishedChapters(storyRow.id)
+          const story = await buildStory(storyRow, chapterRows, paragraphs)
+          return {
+            storyId: storyRow.slug,
+            chapterNumber: row.chapter_number ?? 0,
+            completed: row.completed,
+            updatedAt: new Date(row.updated_at).getTime(),
+            story,
+          }
+        }),
+      )
+      return { items: items.filter((i): i is InProgressRead => i != null), nextCursor }
+    },
+
+    async startChapter(storyId, chapterNumber) {
+      const userId = await requireUserId()
+      const story = await getStoryRowBySlug(storyId)
+      if (!story) throw new Error(`[data/supabase] story "${storyId}" not found`)
+      const { data: chapter, error: chErr } = await supabase
+        .from('chapters')
+        .select('id')
+        .eq('story_id', story.id)
+        .eq('number', chapterNumber)
+        .eq('state', 'published')
+        .eq('hidden', false)
+        .maybeSingle()
+      if (chErr) throw chErr
+      if (!chapter) throw new Error(`[data/supabase] chapter ${chapterNumber} of "${storyId}" not found`)
+
+      const now = new Date().toISOString()
+      const { error } = await supabase.from('reading_progress').upsert(
+        {
+          profile_id: userId,
+          story_id: story.id,
+          chapter_id: chapter.id,
+          chapter_number: chapterNumber,
+          completed: false,
+          updated_at: now,
+        },
+        { onConflict: 'profile_id,story_id' },
+      )
+      if (error) throw error
+
+      // Append-only per the plan ("insert on chapter open"). There is no
+      // client update path for `completed` on this row (see completeChapter)
+      // — see the handoff report.
+      const { error: eventErr } = await supabase.from('read_events').insert({
+        profile_id: userId,
+        session_id: anonSessionId(),
+        story_id: story.id,
+        chapter_id: chapter.id,
+        completed: false,
+      })
+      if (eventErr) throw eventErr
+
+      return { storyId, chapterNumber, completed: false, updatedAt: Date.now() }
+    },
+
+    async completeChapter(storyId, chapterNumber) {
+      const userId = await requireUserId()
+      const story = await getStoryRowBySlug(storyId)
+      if (!story) throw new Error(`[data/supabase] story "${storyId}" not found`)
+      const { data: chapter, error: chErr } = await supabase
+        .from('chapters')
+        .select('id')
+        .eq('story_id', story.id)
+        .eq('number', chapterNumber)
+        .eq('state', 'published')
+        .eq('hidden', false)
+        .maybeSingle()
+      if (chErr) throw chErr
+      if (!chapter) throw new Error(`[data/supabase] chapter ${chapterNumber} of "${storyId}" not found`)
+
+      const now = new Date().toISOString()
+      const { error } = await supabase.from('reading_progress').upsert(
+        {
+          profile_id: userId,
+          story_id: story.id,
+          chapter_id: chapter.id,
+          chapter_number: chapterNumber,
+          completed: true,
+          updated_at: now,
+        },
+        { onConflict: 'profile_id,story_id' },
+      )
+      if (error) throw error
+
+      // Flip the matching read_events row's `completed` too, via the
+      // security-definer RPC added in 0014_reading_stats.sql (read_events
+      // has no client update policy by design — this is exactly the RPC the
+      // Phase 3/4 handoff flagged as missing). Best-effort: reading_progress
+      // above is what the app actually reads, so a failure here shouldn't
+      // fail the whole completeChapter call.
+      const { error: completeEventErr } = await supabase.rpc('complete_read_event', {
+        p_chapter_id: chapter.id,
+      })
+      if (completeEventErr) console.error('[data/supabase] complete_read_event failed', completeEventErr)
+
+      return { storyId, chapterNumber, completed: true, updatedAt: Date.now() }
+    },
+
+    async dismiss(storyId) {
+      const userId = await currentUserId()
+      if (!userId) return
+      const story = await getStoryRowBySlug(storyId)
+      if (!story) return
+      const { error } = await supabase
+        .from('reading_progress')
+        .update({ completed: true, updated_at: new Date().toISOString() })
+        .eq('profile_id', userId)
+        .eq('story_id', story.id)
+        .eq('completed', false)
+      if (error) throw error
+    },
+  },
 
   notifications: {
     async list(params) {
@@ -505,18 +1136,188 @@ export const supabaseDataClient: DataClient = {
     },
   },
 
-  studio: stubResource<DataClient['studio']>('studio', [
-    'listMine',
-    'getBySlug',
-    'createStory',
-    'updateStory',
-    'addChapter',
-    'updateChapter',
-    'setChapterState',
-    'scheduleChapter',
-    'setPaywall',
-    'deleteChapter',
-  ]),
+  studio: {
+    async listMine() {
+      const userId = await requireUserId()
+      const { data, error } = await supabase
+        .from('stories')
+        .select('id, slug, title, blurb, synopsis, cover_color, status')
+        .eq('author_id', userId)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return Promise.all((data ?? []).map(buildStudioStory))
+    },
+
+    async getBySlug(slug) {
+      const userId = await currentUserId()
+      if (!userId) return null
+      const { data, error } = await supabase
+        .from('stories')
+        .select('id, slug, title, blurb, synopsis, cover_color, status')
+        .eq('slug', slug)
+        .eq('author_id', userId)
+        .maybeSingle()
+      if (error) throw error
+      if (!data) return null
+      return buildStudioStory(data)
+    },
+
+    async createStory() {
+      const userId = await requireUserId()
+      const slug = `draft-${crypto.randomUUID().slice(0, 8)}`
+      const { error } = await supabase.from('stories').insert({
+        slug,
+        author_id: userId,
+        title: 'Untitled story',
+        blurb: '',
+        synopsis: '',
+        cover_color: '#6366f1',
+        status: 'ongoing',
+        is_published: false,
+      })
+      if (error) throw error
+      return slug
+    },
+
+    async updateStory(slug, patch) {
+      const userId = await requireUserId()
+      const story = await getOwnStudioStoryRow(slug, userId)
+      if (!story) throw new Error(`[data/supabase] studio story "${slug}" not found`)
+
+      const fields: Record<string, unknown> = {}
+      if (patch.title !== undefined) fields.title = patch.title
+      if (patch.blurb !== undefined) fields.blurb = patch.blurb
+      if (patch.synopsis !== undefined) fields.synopsis = patch.synopsis
+      if (patch.coverColor !== undefined) fields.cover_color = patch.coverColor
+      if (patch.status !== undefined) fields.status = patch.status
+      if (Object.keys(fields).length > 0) {
+        const { error } = await supabase.from('stories').update(fields).eq('id', story.id)
+        if (error) throw error
+      }
+
+      if (patch.tags !== undefined) {
+        const tagIds = await Promise.all(patch.tags.map(ensureTagId))
+        const { data: existingLinks, error: linksErr } = await supabase
+          .from('story_tags')
+          .select('tag_id')
+          .eq('story_id', story.id)
+        if (linksErr) throw linksErr
+        const existingIds = new Set((existingLinks ?? []).map((l) => l.tag_id))
+        const nextIds = new Set(tagIds)
+        const toRemove = [...existingIds].filter((id) => !nextIds.has(id))
+        const toAdd = [...nextIds].filter((id) => !existingIds.has(id))
+        if (toRemove.length > 0) {
+          const { error } = await supabase.from('story_tags').delete().eq('story_id', story.id).in('tag_id', toRemove)
+          if (error) throw error
+        }
+        if (toAdd.length > 0) {
+          const { error } = await supabase
+            .from('story_tags')
+            .insert(toAdd.map((tag_id) => ({ story_id: story.id, tag_id })))
+          if (error) throw error
+        }
+      }
+    },
+
+    async addChapter(slug) {
+      const userId = await requireUserId()
+      const story = await getOwnStudioStoryRow(slug, userId)
+      if (!story) throw new Error(`[data/supabase] studio story "${slug}" not found`)
+      const { data, error } = await supabase
+        .from('chapters')
+        .insert({ story_id: story.id, title: 'Untitled chapter', state: 'draft', locked: false })
+        .select('id')
+        .single()
+      if (error) throw error
+      return data.id
+    },
+
+    async updateChapter(_slug, chapterId, patch) {
+      if (patch.body !== undefined) {
+        // Routes through the paragraph-diff RPC (0010/0011) rather than a
+        // direct table write — this is what keeps comment anchors stable
+        // across edits. Title/locked are passed through too (the RPC
+        // COALESCEs nulls to "leave unchanged") so a combined patch is one
+        // round trip, not two.
+        const { error } = await supabase.rpc('save_chapter_draft', {
+          p_chapter_id: chapterId,
+          p_title: patch.title ?? null,
+          p_plain_text: patch.body,
+          p_locked: patch.locked ?? null,
+        })
+        if (error) throw error
+        return
+      }
+      const fields: Record<string, unknown> = {}
+      if (patch.title !== undefined) fields.title = patch.title
+      if (patch.locked !== undefined) fields.locked = patch.locked
+      if (Object.keys(fields).length === 0) return
+      const { error } = await supabase.from('chapters').update(fields).eq('id', chapterId)
+      if (error) throw error
+    },
+
+    async setChapterState(_slug, chapterId, state) {
+      if (state === 'published') {
+        // _do_publish (0012_fix_is_published.sql) now flips
+        // `stories.is_published` atomically as part of the same transaction
+        // that publishes the chapter, so this is a single RPC call — no
+        // client-side follow-up write, and no window where the RPC succeeds
+        // but the story is left invisible by RLS.
+        const { error } = await supabase.rpc('publish_chapter', { p_chapter_id: chapterId })
+        if (error) throw error
+        return
+      }
+      if (state === 'draft') {
+        const { error } = await supabase.rpc('unpublish_chapter', { p_chapter_id: chapterId })
+        if (error) throw error
+        return
+      }
+      // The UI never calls this with 'scheduled' directly (see
+      // chapter-editor.tsx / story-manager.tsx) — scheduleChapter is the
+      // dedicated entry point, since scheduling needs a target time this
+      // method doesn't receive.
+      throw new Error('[data/supabase] use studio.scheduleChapter to schedule a chapter')
+    },
+
+    async scheduleChapter(_slug, chapterId, at) {
+      const { error } = await supabase.rpc('schedule_chapter', {
+        p_chapter_id: chapterId,
+        p_at: new Date(at).toISOString(),
+      })
+      if (error) throw error
+    },
+
+    async setPaywall(_slug, chapterId, locked) {
+      const { error } = await supabase.from('chapters').update({ locked }).eq('id', chapterId)
+      if (error) throw error
+    },
+
+    async deleteChapter(_slug, chapterId) {
+      const { data: chapterRow, error: chErr } = await supabase
+        .from('chapters')
+        .select('state')
+        .eq('id', chapterId)
+        .single()
+      if (chErr) throw chErr
+      if (chapterRow.state === 'published') {
+        // Plan: "Delete — hard delete only for chapters that were never
+        // published. Published chapters are hidden, not deleted." The
+        // DataClient interface has no separate hide/unhide method (studio's
+        // `ChapterState` union is draft|scheduled|published, no 'hidden'),
+        // so retracting via set_chapter_hidden is the closest safe behavior
+        // available through this call — it preserves the row instead of
+        // violating that invariant. The Studio UI has no way to show/undo a
+        // hidden-but-still-"published"-state chapter yet; flagged in the
+        // handoff report as a real contract gap, not something to paper over
+        // by changing the shared StudioChapter type unilaterally.
+        const { error } = await supabase.rpc('set_chapter_hidden', { p_chapter_id: chapterId, p_hidden: true })
+        if (error) throw error
+        return
+      }
+      const { error } = await supabase.from('chapters').delete().eq('id', chapterId)
+      if (error) throw error
+    },
+  },
 
   profiles: {
     async getByHandle(handle) {
@@ -555,10 +1356,75 @@ export const supabaseDataClient: DataClient = {
       return buildProfile(row as ProfileRow)
     },
 
-    updateMe: () => notImplemented('profiles.updateMe'),
-    getStats: () => notImplemented('profiles.getStats'),
-    getMyStats: () => notImplemented('profiles.getMyStats'),
-    updateMyStats: () => notImplemented('profiles.updateMyStats'),
+    async updateMe(patch) {
+      const userId = await requireUserId()
+      const fields: Record<string, unknown> = {}
+      if (patch.displayName !== undefined) fields.display_name = patch.displayName
+      if (patch.handle !== undefined) fields.username = patch.handle
+      if (patch.avatarColor !== undefined) fields.avatar_color = patch.avatarColor
+      if (patch.bio !== undefined) fields.bio = patch.bio
+      if (patch.favoriteGenres !== undefined) fields.favorite_genres = patch.favoriteGenres
+      // `isAuthor`/`author` are derived (is_author is flipped by the DB, not
+      // client-writable per RLS's implicit column set; author is computed
+      // from published stories), so they're intentionally not mapped here
+      // even though Partial<Profile> technically allows them in a patch.
+      const { data, error } = await supabase
+        .from('profiles')
+        .update(fields)
+        .eq('id', userId)
+        .select('id, username, display_name, avatar_color, bio, favorite_genres, is_author')
+        .single()
+      if (error) throw error
+      return buildProfile(data as ProfileRow)
+    },
+
+    // ReadingStats, backed by real data (0014_reading_stats.sql):
+    // booksRead/chaptersRead from reading_progress/read_events, minutesRead
+    // honestly reported as 0 (no dwell-time column exists anywhere in the
+    // schema — that's instrumentation scope, Phase 6, not fabricable here),
+    // dayStreak computed from consecutive read_events days. Both RPCs return
+    // aggregates only, never raw rows, since read_events/reading_progress
+    // are RLS-private to their owner.
+    async getStats(handle) {
+      const { data, error } = await supabase.rpc('get_reading_stats', { p_handle: handle })
+      if (error) throw error
+      const row = (Array.isArray(data) ? data[0] : data) as
+        | { books_read: number; chapters_read: number; minutes_read: number; day_streak: number }
+        | undefined
+      return {
+        booksRead: row?.books_read ?? 0,
+        chaptersRead: row?.chapters_read ?? 0,
+        minutesRead: row?.minutes_read ?? 0,
+        dayStreak: row?.day_streak ?? 0,
+      }
+    },
+
+    async getMyStats() {
+      const { data, error } = await supabase.rpc('get_my_reading_stats')
+      if (error) throw error
+      const row = (Array.isArray(data) ? data[0] : data) as
+        | { books_read: number; chapters_read: number; minutes_read: number; day_streak: number }
+        | undefined
+      return {
+        booksRead: row?.books_read ?? 0,
+        chaptersRead: row?.chapters_read ?? 0,
+        minutesRead: row?.minutes_read ?? 0,
+        dayStreak: row?.day_streak ?? 0,
+      }
+    },
+
+    // Stats are computed from read_events/reading_progress, not a value the
+    // client owns — there is no real-backend equivalent of the local
+    // adapter's fake per-account stat blob. The only caller is
+    // settings.tsx's "Adjust demo values" panel, which is explicitly local
+    // demo debug UI (see its own comments); against a real backend that
+    // panel has nothing meaningful to write, so this stays unimplemented by
+    // design rather than accepting writes that would just be silently
+    // discarded or, worse, corrupt the derived numbers.
+    updateMyStats: () =>
+      notImplemented(
+        'profiles.updateMyStats — reading stats are derived from read_events/reading_progress and are not client-writable against the real backend',
+      ),
   },
 
   auth: {

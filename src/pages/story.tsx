@@ -6,24 +6,21 @@ import { TagLink } from '@/components/tag-link'
 import { ChapterList } from '@/components/chapter-list'
 import { LikeButton } from '@/components/like-button'
 import { useLikes } from '@/hooks/use-likes'
-import { useActiveRead } from '@/hooks/use-active-read'
+import { useReadingProgress } from '@/hooks/use-reading-progress'
 import { getStory } from '@/data'
 import { formatCompact, formatRelativeTime } from '@/lib/format'
 
 export function StoryPage() {
   const { slug = '' } = useParams()
   const likes = useLikes()
-  const { activeRead } = useActiveRead()
+  const { progress } = useReadingProgress(slug)
 
   const story = getStory(slug)
   if (!story) return <Navigate to="/" replace />
 
   const totalWords = story.chapters.reduce((n, c) => n + c.wordCount, 0)
   const firstUnlocked = story.chapters.find((c) => !c.locked) ?? story.chapters[0]
-  const resume =
-    activeRead && activeRead.slug === slug && !activeRead.completed
-      ? activeRead.chapterNumber
-      : null
+  const resume = progress && !progress.completed ? progress.chapterNumber : null
   const ctaChapter = resume ?? firstUnlocked.number
 
   return (

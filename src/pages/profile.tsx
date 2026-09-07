@@ -7,9 +7,9 @@ import { StatTile } from '@/components/stat-tile'
 import { ActivityFeed } from '@/components/activity-feed'
 import { useUser, useFakeStats } from '@/hooks/use-user'
 import { useFollows } from '@/hooks/use-follows'
-import { useComments } from '@/hooks/use-comments'
+import { useMyComments } from '@/hooks/use-comments'
 import { useLikes } from '@/hooks/use-likes'
-import { useParagraphLikes } from '@/hooks/use-paragraph-likes'
+import { useMyParagraphLikes } from '@/hooks/use-paragraph-likes'
 import { getPerson, fakeStatsFor } from '@/data/people'
 import { stories } from '@/data'
 import { buildActivity, seededCommentsBy } from '@/lib/activity'
@@ -21,9 +21,9 @@ export function ProfilePage() {
   const { stats: myStats } = useFakeStats()
   const follows = useFollows()
   const { isGuest, promptAuth } = useAuthPrompt()
-  const comments = useComments()
+  const myComments = useMyComments(handle)
   const likes = useLikes()
-  const paraLikes = useParagraphLikes()
+  const myParagraphLikes = useMyParagraphLikes()
 
   const isSelf = handle === user.username
   const isGuestSelf = isSelf && isGuest
@@ -49,10 +49,10 @@ export function ProfilePage() {
     ? buildActivity({
         handle,
         isSelf: true,
-        comments: comments.mine(handle),
+        comments: myComments,
         publishedSlugs: person.storySlugs,
         likedStorySlugs: likes.liked,
-        likedParagraphAnchors: paraLikes.liked,
+        likedParagraphAnchors: myParagraphLikes,
       })
     : buildActivity({
         handle,

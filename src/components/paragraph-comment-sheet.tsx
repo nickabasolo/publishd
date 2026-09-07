@@ -15,7 +15,7 @@ interface Props {
 }
 
 export function ParagraphCommentSheet({ story, chapter, paragraphIndex, onClose }: Props) {
-  const paraLikes = useParagraphLikes()
+  const paraLikes = useParagraphLikes(story.slug, chapter.number)
   const open = paragraphIndex !== null
   const [entered, setEntered] = useState(false)
 
@@ -74,9 +74,9 @@ export function ParagraphCommentSheet({ story, chapter, paragraphIndex, onClose 
             quote={chapter.paragraphs[paragraphIndex]}
             likeSlot={
               <LikeButton
-                liked={paraLikes.has(anchor)}
-                count={paraLikes.baseLikes(anchor)}
-                onToggle={() => paraLikes.toggle(anchor)}
+                liked={paraLikes.has(paragraphIndex)}
+                count={paraLikes.baseLikes(paragraphIndex)}
+                onToggle={() => paraLikes.toggle(paragraphIndex)}
               />
             }
           />

@@ -4,18 +4,18 @@ import { useComments } from '@/hooks/use-comments'
 import { useUser } from '@/hooks/use-user'
 import { useAuthPrompt } from '@/context/auth-prompt'
 import { formatRelativeTime } from '@/lib/format'
-import type { Comment, CommentAuthor } from '@/lib/types'
+import type { Comment, ProfileSummary } from '@/lib/data'
 
 const inputCls =
   'w-full rounded-md border border-ink/15 bg-paper px-3 py-2 font-sans text-sm outline-none focus:border-ink/40 dark:border-white/15 dark:bg-surface-night'
 
-function Byline({ author, createdAt }: { author: CommentAuthor; createdAt: number }) {
+function Byline({ author, createdAt }: { author?: ProfileSummary; createdAt: number }) {
   return (
     <p className="font-sans text-xs">
       <UserLink
-        handle={author.handle}
-        name={author.name}
-        avatarColor={author.avatarColor}
+        handle={author?.handle ?? 'unknown'}
+        name={author?.displayName ?? 'Someone'}
+        avatarColor={author?.avatarColor ?? '#94a3b8'}
         showAvatar={false}
         className="font-medium text-ink dark:text-stone-200"
       />
@@ -38,9 +38,9 @@ function CommentItem({
   return (
     <li className="flex gap-2.5">
       <UserLink
-        handle={comment.author.handle}
-        name={comment.author.name}
-        avatarColor={comment.author.avatarColor}
+        handle={comment.author?.handle ?? 'unknown'}
+        name={comment.author?.displayName ?? 'Someone'}
+        avatarColor={comment.author?.avatarColor ?? '#94a3b8'}
         size={28}
         showName={false}
       />
@@ -64,9 +64,9 @@ function CommentItem({
             {comment.replies.map((r) => (
               <li key={r.id} className="flex gap-2">
                 <UserLink
-                  handle={r.author.handle}
-                  name={r.author.name}
-                  avatarColor={r.author.avatarColor}
+                  handle={r.author?.handle ?? 'unknown'}
+                  name={r.author?.displayName ?? 'Someone'}
+                  avatarColor={r.author?.avatarColor ?? '#94a3b8'}
                   size={22}
                   showName={false}
                 />
@@ -121,11 +121,10 @@ export function CommentThread({
   quote?: string
   likeSlot?: ReactNode
 }) {
-  const { list, addComment, addReply } = useComments()
+  const { comments, addComment, addReply } = useComments(anchor)
   const { user } = useUser()
   const { isGuest, promptAuth } = useAuthPrompt()
   const [text, setText] = useState('')
-  const comments = list(anchor)
 
   return (
     <div>
@@ -144,11 +143,7 @@ export function CommentThread({
           </li>
         ) : (
           comments.map((c) => (
-            <CommentItem
-              key={c.id}
-              comment={c}
-              onReply={(id, body) => addReply(anchor, id, body)}
-            />
+            <CommentItem key={c.id} comment={c} onReply={(id, body) => addReply(id, body)} />
           ))
         )}
       </ul>
@@ -167,7 +162,7 @@ export function CommentThread({
           onSubmit={(e) => {
             e.preventDefault()
             if (!text.trim()) return
-            addComment(anchor, text)
+            addComment(text)
             setText('')
           }}
         >

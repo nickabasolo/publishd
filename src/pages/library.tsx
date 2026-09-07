@@ -1,9 +1,8 @@
 import { Link } from 'react-router-dom'
 import { Heart } from 'lucide-react'
 import { stories } from '@/data'
-import { currentlyReadingSlugs } from '@/data/demo-state'
 import { useLikes } from '@/hooks/use-likes'
-import { useActiveRead } from '@/hooks/use-active-read'
+import { useInProgressReads } from '@/hooks/use-reading-progress'
 import { useAuthPrompt } from '@/context/auth-prompt'
 import type { Story } from '@/lib/types'
 
@@ -68,18 +67,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export function LibraryPage() {
   const { liked } = useLikes()
-  const { activeRead } = useActiveRead()
+  const { items: inProgress } = useInProgressReads()
   const { isGuest, promptAuth } = useAuthPrompt()
 
-  const resumeStory =
-    activeRead && !activeRead.completed
-      ? stories.find((s) => s.slug === activeRead.slug)
-      : undefined
-
-  const readingSlugs = currentlyReadingSlugs.filter((s) => s !== resumeStory?.slug)
-  const readingStories = readingSlugs
-    .map((slug) => stories.find((s) => s.slug === slug))
-    .filter((s): s is Story => Boolean(s))
+  // The join'd `story` comes from the data contract's Story shape, which is
+  // structurally compatible with the legacy `Story` this page otherwise uses.
+  const readingRows = inProgress
+    .filter((p) => p.story)
+    .map((p) => ({ story: stories.find((s) => s.slug === p.storyId) ?? null, chapterNumber: p.chapterNumber }))
+    .filter((r): r is { story: Story; chapterNumber: number } => Boolean(r.story))
 
   const likedStories = stories.filter((s) => liked.includes(s.slug))
 
@@ -94,25 +90,23 @@ export function LibraryPage() {
         </header>
 
         <Section title="Currently reading">
-          {!resumeStory && readingStories.length === 0 ? (
+          {readingRows.length === 0 ? (
             <p className="rounded-xl bg-paper p-8 text-center font-sans text-sm text-ink-soft shadow-sm dark:bg-night dark:text-stone-400">
               Open a chapter and it&rsquo;ll show up here.
             </p>
           ) : (
             <div className="space-y-3">
-              {resumeStory && (
+              {readingRows.map(({ story, chapterNumber }) => (
                 <StoryRow
-                  story={resumeStory}
-                  to={`/read/${resumeStory.slug}/${activeRead!.chapterNumber}`}
+                  key={story.id}
+                  story={story}
+                  to={`/read/${story.slug}/${chapterNumber}`}
                   trailing={
                     <span className="shrink-0 font-sans text-sm font-medium text-ink dark:text-stone-100">
-                      Continue · Ch {activeRead!.chapterNumber}
+                      Continue · Ch {chapterNumber}
                     </span>
                   }
                 />
-              )}
-              {readingStories.map((s) => (
-                <StoryRow key={s.id} story={s} to={`/read/${s.slug}/${latestReadableChapter(s).number}`} />
               ))}
             </div>
           )}

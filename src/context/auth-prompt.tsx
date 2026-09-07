@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { AuthSheet } from '@/components/auth-sheet'
 import { useAccount } from '@/context/account'
+import { signInWithOAuth, type OAuthProvider } from '@/lib/data/supabase/auth'
 
 interface PromptOpts {
   /** e.g. "like this", "comment", "follow Mara" — completes "Sign in to …". */
@@ -24,6 +25,8 @@ interface AuthPromptValue {
 
 const AuthPromptContext = createContext<AuthPromptValue | null>(null)
 
+const backend = import.meta.env.VITE_DATA_BACKEND ?? 'local'
+
 export function AuthPromptProvider({ children }: { children: ReactNode }) {
   const { accountId, setAccountId } = useAccount()
   const [open, setOpen] = useState(false)
@@ -36,13 +39,24 @@ export function AuthPromptProvider({ children }: { children: ReactNode }) {
     setOpen(true)
   }, [])
 
-  const handleSignIn = useCallback(() => {
+  // Local backend: the fake, instant sign-in the prototype always had.
+  // Provider is ignored — every button does the same thing.
+  const handleLocalSignIn = useCallback(() => {
     setAccountId('reader')
     setOpen(false)
     const cb = onCompleteRef.current
     onCompleteRef.current = undefined
     if (cb) requestAnimationFrame(cb)
   }, [setAccountId])
+
+  // Supabase backend: real OAuth. This navigates the browser away to the
+  // provider and back — there is no synchronous "signed in" moment here, so
+  // `onComplete` cannot be safely replayed after a redirect round trip and
+  // is intentionally not invoked. account.tsx's session listener picks up
+  // the resulting session once the redirect returns.
+  const handleOAuthSignIn = useCallback(async (provider: OAuthProvider) => {
+    await signInWithOAuth(provider)
+  }, [])
 
   const value = useMemo<AuthPromptValue>(
     () => ({ isGuest: accountId === 'guest', promptAuth }),
@@ -56,7 +70,7 @@ export function AuthPromptProvider({ children }: { children: ReactNode }) {
         open={open}
         action={action}
         onClose={() => setOpen(false)}
-        onSignIn={handleSignIn}
+        onSignIn={backend === 'supabase' ? handleOAuthSignIn : handleLocalSignIn}
       />
     </AuthPromptContext.Provider>
   )

@@ -1,8 +1,7 @@
 import { useCallback } from 'react'
-import { useLocalStorage } from '@/lib/storage'
-import { useUser } from '@/hooks/use-user'
-import { COMMENT_SEED } from '@/data/comments-seed'
-import type { Comment, CommentAuthor, CommentReply } from '@/lib/types'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useDataClient } from '@/lib/data'
+import type { AuthoredComment, ChapterCommentCounts, Comment, Page } from '@/lib/data'
 
 export function chapterAnchor(slug: string, chapter: number): string {
   return `${slug}/${chapter}`
@@ -25,117 +24,84 @@ export function parseAnchor(anchor: string): ParsedAnchor {
   }
 }
 
-export interface AuthoredComment {
-  body: string
-  at: number
-  anchor: string
-  isReply: boolean
-}
+export type { AuthoredComment }
 
-function uid(): string {
-  try {
-    return crypto.randomUUID()
-  } catch {
-    return `${Date.now()}-${Math.random().toString(36).slice(2)}`
-  }
-}
+/** One comment thread (chapter- or paragraph-level), keyed by anchor. */
+export function useComments(anchor: string) {
+  const client = useDataClient()
+  const qc = useQueryClient()
+  const key = ['comments', 'thread', anchor] as const
 
-// Only the reader's own contributions are persisted; COMMENT_SEED stays an
-// in-memory baseline so edits to it always show up (no cache-busting needed).
-interface UserComments {
-  comments: Record<string, Comment[]> // top-level comments, by anchor
-  replies: Record<string, CommentReply[]> // replies, by parent comment id (seed or user)
-}
+  const query = useQuery({
+    queryKey: key,
+    queryFn: () => client.comments.list(anchor, { limit: 200 }),
+    enabled: Boolean(anchor),
+  })
+  const comments: Comment[] = query.data?.items ?? []
 
-const EMPTY: UserComments = { comments: {}, replies: {} }
-
-/** Fake, localStorage-backed comments keyed by chapter/paragraph anchor. */
-export function useComments() {
-  const [store, setStore] = useLocalStorage<UserComments>('comments.v2', EMPTY)
-  const { user } = useUser()
-
-  const me = useCallback(
-    (): CommentAuthor => ({
-      name: user.displayName,
-      handle: user.username,
-      avatarColor: user.avatarColor,
-    }),
-    [user],
-  )
-
-  const list = useCallback(
-    (anchor: string): Comment[] => {
-      const base = [...(COMMENT_SEED[anchor] ?? []), ...(store.comments[anchor] ?? [])]
-      return base.map((c) => ({
-        ...c,
-        replies: [...c.replies, ...(store.replies[c.id] ?? [])],
-      }))
+  const addComment = useMutation({
+    mutationFn: (body: string) => client.comments.add(anchor, body),
+    onSuccess: (comment) => {
+      qc.setQueryData<Page<Comment>>(key, (old) =>
+        old ? { ...old, items: [...old.items, comment] } : { items: [comment], nextCursor: null },
+      )
     },
-    [store],
-  )
+  })
 
-  // Top-level comments + replies.
-  const count = useCallback(
-    (anchor: string) => list(anchor).reduce((n, c) => n + 1 + c.replies.length, 0),
-    [list],
-  )
-
-  // Every comment/reply authored by `handle`, across all anchors (seed + user).
-  const mine = useCallback(
-    (handle: string): AuthoredComment[] => {
-      const anchors = new Set([
-        ...Object.keys(COMMENT_SEED),
-        ...Object.keys(store.comments),
-      ])
-      const out: AuthoredComment[] = []
-      for (const anchor of anchors) {
-        for (const c of list(anchor)) {
-          if (c.author.handle === handle) {
-            out.push({ body: c.body, at: c.createdAt, anchor, isReply: false })
-          }
-          for (const r of c.replies) {
-            if (r.author.handle === handle) {
-              out.push({ body: r.body, at: r.createdAt, anchor, isReply: true })
+  const addReply = useMutation({
+    mutationFn: ({ commentId, body }: { commentId: string; body: string }) =>
+      client.comments.reply(commentId, body),
+    onSuccess: (reply, { commentId }) => {
+      qc.setQueryData<Page<Comment>>(key, (old) =>
+        old
+          ? {
+              ...old,
+              items: old.items.map((c) =>
+                c.id === commentId ? { ...c, replies: [...c.replies, reply] } : c,
+              ),
             }
-          }
-        }
-      }
-      return out
+          : old,
+      )
     },
-    [store, list],
-  )
+  })
 
-  const addComment = useCallback(
-    (anchor: string, body: string) => {
+  const add = useCallback(
+    (body: string) => {
       const text = body.trim()
-      if (!text) return
-      const comment: Comment = {
-        id: uid(),
-        author: me(),
-        body: text,
-        createdAt: Date.now(),
-        replies: [],
-      }
-      setStore((s) => ({
-        ...s,
-        comments: { ...s.comments, [anchor]: [...(s.comments[anchor] ?? []), comment] },
-      }))
+      if (text) addComment.mutate(text)
     },
-    [me, setStore],
+    [addComment],
   )
-
-  const addReply = useCallback(
-    (_anchor: string, commentId: string, body: string) => {
+  const reply = useCallback(
+    (commentId: string, body: string) => {
       const text = body.trim()
-      if (!text) return
-      const reply: CommentReply = { id: uid(), author: me(), body: text, createdAt: Date.now() }
-      setStore((s) => ({
-        ...s,
-        replies: { ...s.replies, [commentId]: [...(s.replies[commentId] ?? []), reply] },
-      }))
+      if (text) addReply.mutate({ commentId, body: text })
     },
-    [me, setStore],
+    [addReply],
   )
 
-  return { list, count, mine, addComment, addReply }
+  return { comments, isLoading: query.isLoading, addComment: add, addReply: reply }
+}
+
+/** Comment counts (chapter total + per-paragraph) for one chapter, in a single batched call. */
+export function useChapterCommentCounts(slug: string, chapterNumber: number) {
+  const client = useDataClient()
+  const query = useQuery({
+    queryKey: ['comments', 'counts', slug, chapterNumber] as const,
+    queryFn: () => client.comments.countsForChapter(slug, chapterNumber),
+    enabled: Boolean(slug) && Number.isFinite(chapterNumber),
+  })
+  const counts: ChapterCommentCounts = query.data ?? { chapter: 0, paragraphs: {} }
+  return counts
+}
+
+/** Every comment/reply authored by `handle`, newest first (bounded — see the contract's Page rule). */
+export function useMyComments(handle: string) {
+  const client = useDataClient()
+  const query = useQuery({
+    queryKey: ['comments', 'mine', handle] as const,
+    queryFn: () => client.comments.mine(handle, { limit: 50 }),
+    enabled: Boolean(handle),
+  })
+  return query.data?.items ?? []
 }

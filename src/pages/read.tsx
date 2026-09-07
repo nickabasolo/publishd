@@ -3,21 +3,22 @@ import { Navigate, useParams } from 'react-router-dom'
 import { ReadingView } from '@/components/reading-view'
 import { ChapterDrawer } from '@/components/chapter-drawer'
 import { getStory } from '@/data'
-import { useActiveRead } from '@/hooks/use-active-read'
+import { useReadingProgress } from '@/hooks/use-reading-progress'
 
 export function ReadPage() {
   const { slug, chapterNumber } = useParams()
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const { startChapter } = useActiveRead()
 
   const story = getStory(slug)
   const requested = chapterNumber ? Number(chapterNumber) : 1
   const chapter =
     story?.chapters.find((c) => c.number === requested) ?? story?.chapters[0]
 
+  const { startChapter } = useReadingProgress(story?.slug ?? '')
+
   useEffect(() => {
     if (story && chapter && !chapter.locked) {
-      startChapter(story.slug, chapter.number)
+      startChapter(chapter.number)
     }
   }, [story, chapter, startChapter])
 

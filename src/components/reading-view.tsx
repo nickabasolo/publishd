@@ -16,8 +16,8 @@ import { LikeButton } from '@/components/like-button'
 import { CommentThread } from '@/components/comment-thread'
 import { ParagraphCommentSheet } from '@/components/paragraph-comment-sheet'
 import { useLikes } from '@/hooks/use-likes'
-import { useActiveRead } from '@/hooks/use-active-read'
-import { chapterAnchor, paragraphAnchor, useComments } from '@/hooks/use-comments'
+import { useReadingProgress } from '@/hooks/use-reading-progress'
+import { chapterAnchor, useChapterCommentCounts } from '@/hooks/use-comments'
 import { useParagraphLikes } from '@/hooks/use-paragraph-likes'
 import { FONT_SIZE_CLASS, LINE_HEIGHT_CLASS, useSettings } from '@/context/settings'
 import { formatCompact, formatRelativeTime } from '@/lib/format'
@@ -42,9 +42,9 @@ export function ReadingView({ story, chapter, onOpenChapters }: ReadingViewProps
   const navigate = useNavigate()
   const likes = useLikes()
   const { settings } = useSettings()
-  const { completeChapter } = useActiveRead()
-  const { count: commentCount } = useComments()
-  const paraLikes = useParagraphLikes()
+  const { completeChapter } = useReadingProgress(story.slug)
+  const commentCounts = useChapterCommentCounts(story.slug, chapter.number)
+  const paraLikes = useParagraphLikes(story.slug, chapter.number)
   const [activePara, setActivePara] = useState<number | null>(null)
 
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -64,7 +64,7 @@ export function ReadingView({ story, chapter, onOpenChapters }: ReadingViewProps
       const end = endRef.current
       if (!end) return
       if (end.getBoundingClientRect().bottom <= vp.getBoundingClientRect().bottom + 8) {
-        completeChapter(story.slug, chapter.number)
+        completeChapter(chapter.number)
       }
     }
     vp.addEventListener('scroll', onScroll, { passive: true })
@@ -156,10 +156,9 @@ export function ReadingView({ story, chapter, onOpenChapters }: ReadingViewProps
             )}
           >
             {chapter.paragraphs.map((p, i) => {
-              const anchor = paragraphAnchor(story.slug, chapter.number, i)
-              const cCount = commentCount(anchor)
-              const lTotal = paraLikes.totalLikes(anchor)
-              const liked = paraLikes.has(anchor)
+              const cCount = commentCounts.paragraphs[i] ?? 0
+              const lTotal = paraLikes.totalLikes(i)
+              const liked = paraLikes.has(i)
               const hasActivity = cCount > 0 || lTotal > 0
               return (
                 <div
@@ -214,8 +213,7 @@ export function ReadingView({ story, chapter, onOpenChapters }: ReadingViewProps
           <section className="mt-10 border-t border-ink/10 pt-6 dark:border-white/10">
             <h2 className="font-sans text-sm font-semibold">
               Comments
-              {commentCount(chapterAnchor(story.slug, chapter.number)) > 0 &&
-                ` (${commentCount(chapterAnchor(story.slug, chapter.number))})`}
+              {commentCounts.chapter > 0 && ` (${commentCounts.chapter})`}
             </h2>
             <div className="mt-4">
               <CommentThread anchor={chapterAnchor(story.slug, chapter.number)} />

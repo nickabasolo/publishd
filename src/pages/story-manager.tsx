@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Plus, X } from 'lucide-react'
+import { ArrowLeft, BarChart3, Plus, X } from 'lucide-react'
 import { Segmented } from '@/components/ui/segmented'
 import { ChapterRow } from '@/components/studio/chapter-row'
 import { ScheduleSheet } from '@/components/studio/schedule-sheet'
@@ -33,13 +33,22 @@ export function StoryManagerPage() {
   return (
     <div className="min-h-full bg-surface px-4 py-6 pb-32 dark:bg-surface-night md:py-10 md:pb-24">
       <div className="mx-auto max-w-2xl space-y-4">
-        <Link
-          to="/studio"
-          className="inline-flex items-center gap-1.5 font-sans text-sm text-ink-soft hover:text-ink dark:text-stone-400"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Your stories
-        </Link>
+        <div className="flex items-center justify-between">
+          <Link
+            to="/studio"
+            className="inline-flex items-center gap-1.5 font-sans text-sm text-ink-soft hover:text-ink dark:text-stone-400"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Your stories
+          </Link>
+          <Link
+            to={`/studio/${slug}/analytics`}
+            className="inline-flex items-center gap-1.5 font-sans text-sm font-medium text-ink-soft hover:text-ink dark:text-stone-400"
+          >
+            <BarChart3 className="h-4 w-4" />
+            Analytics
+          </Link>
+        </div>
 
         {/* Details */}
         <section className="space-y-4 rounded-xl bg-paper p-5 shadow-sm dark:bg-night sm:p-6">

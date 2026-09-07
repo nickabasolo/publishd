@@ -1,23 +1,27 @@
-import { Home, Heart, PenLine, User } from 'lucide-react'
+import { Home, Library, PenLine, Bell, User } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useUser } from '@/hooks/use-user'
+import { useNotifications } from '@/hooks/use-notifications'
 import { cn } from '@/lib/utils'
 
 interface NavItem {
   label: string
   href: string
   icon: typeof Home
+  dot?: boolean
 }
 
 export function Navigation() {
   const location = useLocation()
   const { user } = useUser()
+  const { unreadCount } = useNotifications()
 
   // One nav for everyone — a reader-type account just has an empty Studio.
   const navItems: NavItem[] = [
     { label: 'Home', href: '/', icon: Home },
-    { label: 'Likes', href: '/likes', icon: Heart },
+    { label: 'Library', href: '/library', icon: Library },
     { label: 'Write', href: '/studio', icon: PenLine },
+    { label: 'Notifications', href: '/notifications', icon: Bell, dot: unreadCount > 0 },
     { label: 'Profile', href: `/u/${user.username}`, icon: User },
   ]
 
@@ -32,7 +36,7 @@ export function Navigation() {
     <>
       {/* Mobile bottom navigation */}
       <nav className="fixed bottom-0 left-0 right-0 border-t border-ink/10 bg-paper md:hidden dark:border-white/10 dark:bg-night">
-        <div className="flex justify-around">
+        <div className="flex">
           {navItems.map((item) => {
             const Icon = item.icon
             const active = isActive(item.href)
@@ -42,14 +46,19 @@ export function Navigation() {
                 to={item.href}
                 aria-label={item.label}
                 className={cn(
-                  'flex h-16 w-16 items-center justify-center transition-colors',
+                  'flex h-16 flex-1 items-center justify-center transition-colors',
                   active ? 'text-ink dark:text-stone-100' : 'text-ink-soft dark:text-stone-500',
                 )}
               >
-                <Icon
-                  className={cn('h-5 w-5', active && 'fill-current')}
-                  strokeWidth={active ? 2 : 1.75}
-                />
+                <span className="relative">
+                  <Icon
+                    className={cn('h-5 w-5', active && 'fill-current')}
+                    strokeWidth={active ? 2 : 1.75}
+                  />
+                  {item.dot && (
+                    <span className="absolute -right-1.5 -top-1 h-2 w-2 rounded-full bg-red-500" />
+                  )}
+                </span>
               </Link>
             )
           })}
@@ -74,10 +83,15 @@ export function Navigation() {
                     : 'text-ink-soft hover:bg-ink/5 hover:text-ink dark:text-stone-400 dark:hover:bg-white/5 dark:hover:text-stone-200',
                 )}
               >
-                <Icon
-                  className={cn('h-[18px] w-[18px]', active && 'fill-current')}
-                  strokeWidth={1.75}
-                />
+                <span className="relative">
+                  <Icon
+                    className={cn('h-[18px] w-[18px]', active && 'fill-current')}
+                    strokeWidth={1.75}
+                  />
+                  {item.dot && (
+                    <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500" />
+                  )}
+                </span>
                 {item.label}
               </Link>
             )

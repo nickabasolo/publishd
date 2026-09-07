@@ -43,6 +43,7 @@ function summary(it: ActivityItem): ReactNode {
 }
 
 function hrefFor(it: ActivityItem): string {
+  if (it.kind === 'publish') return `/s/${it.storySlug}`
   return it.chapter ? `/read/${it.storySlug}/${it.chapter}` : `/read/${it.storySlug}`
 }
 

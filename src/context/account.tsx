@@ -10,7 +10,7 @@ interface AccountValue {
 const AccountContext = createContext<AccountValue | null>(null)
 
 export function AccountProvider({ children }: { children: ReactNode }) {
-  const [accountId, setAccountId] = useLocalStorage<AccountId>('account', 'reader')
+  const [accountId, setAccountId] = useLocalStorage<AccountId>('account', 'guest')
   const value = useMemo(() => ({ accountId, setAccountId }), [accountId, setAccountId])
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>
 }

@@ -1,7 +1,7 @@
 import { defaultUser, defaultFakeStats } from '@/data/default-user'
 import type { FakeStats, User } from '@/lib/types'
 
-export type AccountId = 'reader' | 'author'
+export type AccountId = 'guest' | 'reader' | 'author'
 
 export interface Account {
   id: AccountId
@@ -10,8 +10,24 @@ export interface Account {
   stats: FakeStats
 }
 
-// Two fake accounts the prototype banner switches between. Same app either way —
-// the author account just already has published work.
+// Fake accounts the prototype banner switches between. Same app either way —
+// Guest is signed out; the author account already has published work.
+const guestUser: User = {
+  id: 'acct-guest',
+  username: 'guest',
+  displayName: 'Guest',
+  avatarColor: '#94a3b8',
+  bio: '',
+  favoriteGenres: [],
+}
+
+const guestStats: FakeStats = {
+  booksRead: 0,
+  chaptersRead: 0,
+  minutesRead: 0,
+  dayStreak: 0,
+}
+
 const authorUser: User = {
   id: 'acct-author',
   username: 'maravance',
@@ -29,6 +45,7 @@ const authorStats: FakeStats = {
 }
 
 export const ACCOUNTS: Record<AccountId, Account> = {
+  guest: { id: 'guest', label: 'Guest', user: guestUser, stats: guestStats },
   reader: { id: 'reader', label: 'Reader', user: defaultUser, stats: defaultFakeStats },
   author: { id: 'author', label: 'Author', user: authorUser, stats: authorStats },
 }

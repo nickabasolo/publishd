@@ -2,10 +2,14 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Layout } from '@/components/layout'
 import { AccountProvider } from '@/context/account'
+import { AuthPromptProvider } from '@/context/auth-prompt'
 import { SettingsProvider } from '@/context/settings'
 import { HomePage } from '@/pages/home'
 import { LikesPage } from '@/pages/likes'
 import { ReadPage } from '@/pages/read'
+import { StoryPage } from '@/pages/story'
+import { TagPage } from '@/pages/tag'
+import { SearchPage } from '@/pages/search'
 import { ProfilePage } from '@/pages/profile'
 import { SettingsPage } from '@/pages/settings'
 import { StudioPage } from '@/pages/studio'
@@ -18,19 +22,24 @@ function App() {
     <HashRouter>
       <SettingsProvider>
         <AccountProvider>
-          <Routes>
-            <Route element={<Layout />}>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/likes" element={<LikesPage />} />
-              <Route path="/read/:slug/:chapterNumber?" element={<ReadPage />} />
-              <Route path="/u/:handle" element={<ProfilePage />} />
-              <Route path="/studio" element={<StudioPage />} />
-              <Route path="/studio/:slug" element={<StoryManagerPage />} />
-              <Route path="/studio/:slug/:chapterId" element={<ChapterEditorPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Route>
-          </Routes>
+          <AuthPromptProvider>
+            <Routes>
+              <Route element={<Layout />}>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/likes" element={<LikesPage />} />
+                <Route path="/read/:slug/:chapterNumber?" element={<ReadPage />} />
+                <Route path="/s/:slug" element={<StoryPage />} />
+                <Route path="/t/:tag" element={<TagPage />} />
+                <Route path="/search" element={<SearchPage />} />
+                <Route path="/u/:handle" element={<ProfilePage />} />
+                <Route path="/studio" element={<StudioPage />} />
+                <Route path="/studio/:slug" element={<StoryManagerPage />} />
+                <Route path="/studio/:slug/:chapterId" element={<ChapterEditorPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Route>
+            </Routes>
+          </AuthPromptProvider>
         </AccountProvider>
       </SettingsProvider>
     </HashRouter>

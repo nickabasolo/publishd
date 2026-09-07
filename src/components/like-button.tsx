@@ -1,5 +1,6 @@
 import { useState, type CSSProperties } from 'react'
 import { Heart } from 'lucide-react'
+import { useAuthPrompt } from '@/context/auth-prompt'
 import { formatCompact } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -15,9 +16,14 @@ const SPARKS = [0, 60, 120, 180, 240, 300]
 export function LikeButton({ liked, count, onToggle, className }: LikeButtonProps) {
   // Bumped each time we transition into the liked state; re-keys the animation nodes.
   const [burst, setBurst] = useState(0)
+  const { isGuest, promptAuth } = useAuthPrompt()
 
   const handle = (e: React.MouseEvent) => {
     e.stopPropagation()
+    if (isGuest) {
+      promptAuth({ action: 'like this', onComplete: onToggle })
+      return
+    }
     if (!liked) setBurst((b) => b + 1)
     onToggle()
   }

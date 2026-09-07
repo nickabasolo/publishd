@@ -13,17 +13,20 @@ import { useParagraphLikes } from '@/hooks/use-paragraph-likes'
 import { getPerson, fakeStatsFor } from '@/data/people'
 import { stories } from '@/data'
 import { buildActivity, seededCommentsBy } from '@/lib/activity'
+import { useAuthPrompt } from '@/context/auth-prompt'
 
 export function ProfilePage() {
   const { handle = '' } = useParams()
   const { user } = useUser()
   const { stats: myStats } = useFakeStats()
   const follows = useFollows()
+  const { isGuest, promptAuth } = useAuthPrompt()
   const comments = useComments()
   const likes = useLikes()
   const paraLikes = useParagraphLikes()
 
   const isSelf = handle === user.username
+  const isGuestSelf = isSelf && isGuest
 
   const selfStorySlugs = stories
     .filter((s) => s.author.handle === user.username)
@@ -57,6 +60,25 @@ export function ProfilePage() {
         comments: seededCommentsBy(handle),
         publishedSlugs: person.storySlugs,
       })
+
+  if (isGuestSelf) {
+    return (
+      <div className="min-h-full bg-surface px-4 py-6 pb-32 dark:bg-surface-night md:py-10 md:pb-24">
+        <div className="mx-auto max-w-2xl">
+          <div className="flex flex-col items-center gap-3 rounded-xl bg-paper p-10 text-center shadow-sm dark:bg-night">
+            <Avatar name="Guest" color="#94a3b8" size={64} />
+            <p className="font-sans text-sm text-ink-soft dark:text-stone-400">
+              You&rsquo;re browsing as a guest. Sign in to like, comment, follow, and build
+              your profile.
+            </p>
+            <Button size="sm" onClick={() => promptAuth({ action: 'get started' })}>
+              Sign in
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-full bg-surface px-4 py-6 pb-32 dark:bg-surface-night md:py-10 md:pb-24">
@@ -107,7 +129,14 @@ export function ProfilePage() {
               <Button
                 size="sm"
                 variant={follows.isFollowing(handle) ? 'outline' : 'default'}
-                onClick={() => follows.toggle(handle)}
+                onClick={() =>
+                  isGuest
+                    ? promptAuth({
+                        action: `follow @${handle}`,
+                        onComplete: () => follows.toggle(handle),
+                      })
+                    : follows.toggle(handle)
+                }
               >
                 {follows.isFollowing(handle) ? 'Following' : 'Follow'}
               </Button>

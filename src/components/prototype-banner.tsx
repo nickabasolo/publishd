@@ -5,6 +5,7 @@ import { useUser } from '@/hooks/use-user'
 import type { AccountId } from '@/data/accounts'
 
 const OPTIONS = [
+  { value: 'guest' as AccountId, label: 'Guest' },
   { value: 'reader' as AccountId, label: 'Reader' },
   { value: 'author' as AccountId, label: 'Author' },
 ]
@@ -28,7 +29,7 @@ export function PrototypeBanner() {
       </div>
       <div className="flex items-center gap-2 bg-surface/90 px-2 py-1 backdrop-blur-sm dark:bg-surface-night/90">
         <span className="hidden font-sans text-xs text-ink-soft sm:inline dark:text-stone-400">
-          Signed in as {user.displayName}
+          {accountId === 'guest' ? 'Browsing as guest' : `Signed in as ${user.displayName}`}
         </span>
         <Segmented
           aria-label="Prototype account"

@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { UserLink } from '@/components/user-link'
 import { useComments } from '@/hooks/use-comments'
 import { useUser } from '@/hooks/use-user'
+import { useAuthPrompt } from '@/context/auth-prompt'
 import { formatRelativeTime } from '@/lib/format'
 import type { Comment, CommentAuthor } from '@/lib/types'
 
@@ -32,6 +33,7 @@ function CommentItem({
 }) {
   const [replying, setReplying] = useState(false)
   const [text, setText] = useState('')
+  const { isGuest, promptAuth } = useAuthPrompt()
 
   return (
     <li className="flex gap-2.5">
@@ -49,7 +51,9 @@ function CommentItem({
         </p>
         <button
           type="button"
-          onClick={() => setReplying((v) => !v)}
+          onClick={() =>
+            isGuest ? promptAuth({ action: 'reply' }) : setReplying((v) => !v)
+          }
           className="mt-1 font-sans text-xs font-medium text-ink-soft hover:text-ink dark:text-stone-400 dark:hover:text-stone-200"
         >
           Reply
@@ -119,6 +123,7 @@ export function CommentThread({
 }) {
   const { list, addComment, addReply } = useComments()
   const { user } = useUser()
+  const { isGuest, promptAuth } = useAuthPrompt()
   const [text, setText] = useState('')
   const comments = list(anchor)
 
@@ -148,37 +153,47 @@ export function CommentThread({
         )}
       </ul>
 
-      <form
-        className="mt-4 flex items-start gap-2.5"
-        onSubmit={(e) => {
-          e.preventDefault()
-          if (!text.trim()) return
-          addComment(anchor, text)
-          setText('')
-        }}
-      >
-        <UserLink
-          handle={user.username}
-          name={user.displayName}
-          avatarColor={user.avatarColor}
-          size={28}
-          showName={false}
-        />
-        <textarea
-          rows={2}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Add a comment…"
-          className={`${inputCls} min-h-10 flex-1 resize-y`}
-        />
+      {isGuest ? (
         <button
-          type="submit"
-          disabled={!text.trim()}
-          className="shrink-0 bg-ink px-4 py-2 font-sans text-sm font-medium text-paper disabled:opacity-40 dark:bg-stone-100 dark:text-stone-900"
+          type="button"
+          onClick={() => promptAuth({ action: 'comment' })}
+          className="mt-4 w-full rounded-md border border-ink/20 py-2.5 font-sans text-sm font-medium text-ink-soft hover:bg-ink/5 hover:text-ink dark:border-white/20 dark:text-stone-400 dark:hover:bg-white/5"
         >
-          Post
+          Sign in to comment
         </button>
-      </form>
+      ) : (
+        <form
+          className="mt-4 flex items-start gap-2.5"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!text.trim()) return
+            addComment(anchor, text)
+            setText('')
+          }}
+        >
+          <UserLink
+            handle={user.username}
+            name={user.displayName}
+            avatarColor={user.avatarColor}
+            size={28}
+            showName={false}
+          />
+          <textarea
+            rows={2}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Add a comment…"
+            className={`${inputCls} min-h-10 flex-1 resize-y`}
+          />
+          <button
+            type="submit"
+            disabled={!text.trim()}
+            className="shrink-0 bg-ink px-4 py-2 font-sans text-sm font-medium text-paper disabled:opacity-40 dark:bg-stone-100 dark:text-stone-900"
+          >
+            Post
+          </button>
+        </form>
+      )}
     </div>
   )
 }

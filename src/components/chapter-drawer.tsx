@@ -1,9 +1,11 @@
 import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Lock, X } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { X } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { UserLink } from '@/components/user-link'
+import { TagLink } from '@/components/tag-link'
+import { ChapterList } from '@/components/chapter-list'
 import { cn } from '@/lib/utils'
 import type { Story } from '@/lib/types'
 
@@ -47,7 +49,13 @@ export function ChapterDrawer({ story, currentChapterNumber, open, onClose }: Ch
       >
         <div className="flex items-start justify-between gap-3 border-b border-ink/10 p-4 dark:border-white/10">
           <div className="min-w-0">
-            <h2 className="truncate font-serif text-lg leading-tight">{story.title}</h2>
+            <Link
+              to={`/s/${story.slug}`}
+              onClick={onClose}
+              className="block truncate font-serif text-lg leading-tight hover:underline"
+            >
+              {story.title}
+            </Link>
             <UserLink
               handle={story.author.handle}
               name={story.author.name}
@@ -71,65 +79,25 @@ export function ChapterDrawer({ story, currentChapterNumber, open, onClose }: Ch
             <p className="font-sans text-sm leading-[1.6] text-ink-soft dark:text-stone-400">
               {story.synopsis}
             </p>
-            <div className="mt-3 flex flex-wrap gap-1.5">
+            <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1">
               <Badge variant={story.status === 'complete' ? 'default' : 'outline'}>
                 {story.status === 'complete' ? 'Complete' : 'Ongoing'}
               </Badge>
               {story.tags.map((tag) => (
-                <Badge key={tag}>{tag}</Badge>
+                <TagLink key={tag} tag={tag} className="text-xs" />
               ))}
             </div>
 
-            <ul className="mt-5 space-y-0.5 font-sans">
-              {story.chapters.map((ch) => {
-                const isCurrent = ch.number === currentChapterNumber
-                if (ch.locked) {
-                  return (
-                    <li
-                      key={ch.id}
-                      className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm text-ink-soft/60 dark:text-stone-600"
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <Lock className="h-4 w-4 shrink-0" />
-                        <span className="truncate">
-                          {ch.number}. {ch.title}
-                        </span>
-                      </span>
-                      <Badge variant="muted" className="shrink-0">Premium</Badge>
-                    </li>
-                  )
-                }
-                return (
-                  <li key={ch.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigate(`/read/${story.slug}/${ch.number}`)
-                        onClose()
-                      }}
-                      className={cn(
-                        'flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm transition-colors',
-                        isCurrent
-                          ? 'bg-ink text-paper dark:bg-stone-100 dark:text-stone-900'
-                          : 'hover:bg-ink/5 dark:hover:bg-white/5',
-                      )}
-                    >
-                      <span className="min-w-0 truncate">
-                        {ch.number}. {ch.title}
-                      </span>
-                      <span
-                        className={cn(
-                          'shrink-0 text-xs',
-                          isCurrent ? 'opacity-70' : 'text-ink-soft dark:text-stone-500',
-                        )}
-                      >
-                        {ch.wordCount.toLocaleString()} words
-                      </span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
+            <div className="mt-5">
+              <ChapterList
+                story={story}
+                currentChapterNumber={currentChapterNumber}
+                onSelect={(n) => {
+                  navigate(`/read/${story.slug}/${n}`)
+                  onClose()
+                }}
+              />
+            </div>
           </div>
         </ScrollArea>
       </div>

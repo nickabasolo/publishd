@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { UserLink } from '@/components/user-link'
+import { TagLink } from '@/components/tag-link'
 import { LikeButton } from '@/components/like-button'
 import { CommentThread } from '@/components/comment-thread'
 import { ParagraphCommentSheet } from '@/components/paragraph-comment-sheet'
@@ -117,17 +118,14 @@ export function ReadingView({ story, chapter, onOpenChapters }: ReadingViewProps
             <span className="font-sans tracking-[-0.15px] opacity-80">
               Chapter {chapter.number} of {totalLabel} in
             </span>
-            <span className="font-serif">{story.title}</span>
+            <Link to={`/s/${story.slug}`} className="font-serif hover:underline">
+              {story.title}
+            </Link>
           </div>
 
           <div className="mt-4 flex w-full flex-wrap items-start gap-x-2 gap-y-1">
             {story.tags.map((tag) => (
-              <span
-                key={tag}
-                className="font-sans text-sm tracking-[-0.15px] text-ink-soft underline underline-offset-2 dark:text-stone-400"
-              >
-                {tag}
-              </span>
+              <TagLink key={tag} tag={tag} />
             ))}
           </div>
 

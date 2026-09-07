@@ -1,7 +1,8 @@
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Eye, MessageCircle } from 'lucide-react'
 import { LikeButton } from '@/components/like-button'
 import { UserLink } from '@/components/user-link'
+import { TagLink } from '@/components/tag-link'
 import { useLikes } from '@/hooks/use-likes'
 import { formatCompact, formatRelativeTime } from '@/lib/format'
 import type { Story } from '@/lib/types'
@@ -57,20 +58,19 @@ export function StoryPreviewCard({ story }: { story: Story }) {
         <span className="font-sans tracking-[-0.15px] opacity-80">
           Chapter {chapter.number} of {totalLabel} in
         </span>
-        <span className="font-serif">{story.title}</span>
+        <Link
+          to={`/s/${story.slug}`}
+          onClick={(e) => e.stopPropagation()}
+          className="font-serif hover:underline"
+        >
+          {story.title}
+        </Link>
       </div>
 
       {/* Tags */}
       <div className="mt-4 flex w-full flex-wrap items-start gap-x-2 gap-y-1">
         {shownTags.map((tag) => (
-          <button
-            key={tag}
-            type="button"
-            onClick={(e) => e.stopPropagation()}
-            className="font-sans text-sm tracking-[-0.15px] text-ink-soft underline underline-offset-2 hover:text-ink dark:text-stone-400 dark:hover:text-stone-200"
-          >
-            {tag}
-          </button>
+          <TagLink key={tag} tag={tag} stopPropagation />
         ))}
         {moreCount > 0 && (
           <span className="font-sans text-sm tracking-[-0.15px] text-ink-soft dark:text-stone-400">

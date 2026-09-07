@@ -1,0 +1,83 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 27 15% 14%;
+  --card: 0 0% 100%;
+  --card-foreground: 27 15% 14%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 27 15% 14%;
+  --primary: 27 15% 14%;
+  --primary-foreground: 40 33% 98%;
+  --secondary: 30 12% 95%;
+  --secondary-foreground: 27 15% 14%;
+  --muted: 30 12% 96%;
+  --muted-foreground: 27 6% 37%;
+  --accent: 30 12% 94%;
+  --accent-foreground: 27 15% 14%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 40 33% 98%;
+  --border: 27 9% 88%;
+  --input: 27 9% 85%;
+  --ring: 27 12% 32%;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 24 14% 4%;
+  --foreground: 30 6% 90%;
+  --card: 24 14% 4%;
+  --card-foreground: 30 6% 90%;
+  --popover: 24 14% 4%;
+  --popover-foreground: 30 6% 90%;
+  --primary: 30 8% 90%;
+  --primary-foreground: 24 14% 8%;
+  --secondary: 24 8% 13%;
+  --secondary-foreground: 30 6% 90%;
+  --muted: 24 8% 12%;
+  --muted-foreground: 30 5% 64%;
+  --accent: 24 8% 14%;
+  --accent-foreground: 30 6% 90%;
+  --destructive: 0 62.8% 40%;
+  --destructive-foreground: 40 33% 98%;
+  --border: 30 6% 16%;
+  --input: 30 6% 20%;
+  --ring: 30 6% 70%;
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto,
+    Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Sans UI text carries a touch of negative tracking, matching the card spec.
+   Scoped so Tailwind's tracking-* utilities still override it when set. */
+.font-sans:not([class*='tracking-']) {
+  letter-spacing: -0.15px;
+}
+
+/* Heart "like" animation */
+@keyframes like-pop {
+  0% { transform: scale(1); }
+  25% { transform: scale(0.8); }
+  55% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+@keyframes like-ring {
+  0% { transform: scale(0.5); opacity: 0.55; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+@keyframes like-spark {
+  0% { transform: rotate(var(--a)) translateY(-2px) scale(1); opacity: 1; }
+  100% { transform: rotate(var(--a)) translateY(-13px) scale(0); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .like-anim,
+  .like-anim * {
+    animation: none !important;
+  }
+}

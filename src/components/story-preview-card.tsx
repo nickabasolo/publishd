@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Eye, MessageCircle } from 'lucide-react'
-import { Avatar } from '@/components/avatar'
 import { LikeButton } from '@/components/like-button'
+import { UserLink } from '@/components/user-link'
 import { useLikes } from '@/hooks/use-likes'
 import { formatCompact, formatRelativeTime } from '@/lib/format'
 import type { Story } from '@/lib/types'
@@ -36,12 +36,17 @@ export function StoryPreviewCard({ story }: { story: Story }) {
       className="flex cursor-pointer flex-col items-start rounded-2xl border border-ink/10 bg-paper p-5 text-ink shadow-sm transition-shadow hover:shadow-md dark:border-white/10 dark:bg-night dark:text-stone-200"
     >
       {/* Byline */}
-      <div className="flex w-full items-center gap-2">
-        <Avatar name={story.author.name} color={story.author.avatarColor} size={36} />
-        <p className="font-sans text-sm tracking-[-0.15px]">
-          <span className="opacity-90">@{story.author.handle}</span>
-          <span className="opacity-60"> • {formatRelativeTime(story.updatedAt)}</span>
-        </p>
+      <div className="flex w-full items-center gap-2 font-sans text-sm tracking-[-0.15px]">
+        <UserLink
+          handle={story.author.handle}
+          name={story.author.name}
+          avatarColor={story.author.avatarColor}
+          size={36}
+          stopPropagation
+        />
+        <span className="text-ink-soft dark:text-stone-400">
+          • {formatRelativeTime(story.updatedAt)}
+        </span>
       </div>
 
       {/* Chapter title */}

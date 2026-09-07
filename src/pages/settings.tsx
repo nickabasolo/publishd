@@ -3,7 +3,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Segmented } from '@/components/ui/segmented'
 import { Avatar } from '@/components/avatar'
-import { StatTile } from '@/components/stat-tile'
 import { useUser, useFakeStats } from '@/hooks/use-user'
 import {
   FONT_SIZE_LABEL,
@@ -111,26 +110,19 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Reading stats (faked) */}
+      {/* Reading stats (faked) — displayed on your profile, tuned here */}
       <Card>
         <CardHeader>
           <CardTitle className="text-xl">Reading stats</CardTitle>
-          <CardDescription>Illustrative figures for the prototype</CardDescription>
+          <CardDescription>Shown on your profile. Tune the demo values here.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatTile label="Books read" value={stats.booksRead} />
-            <StatTile label="Chapters" value={stats.chaptersRead} />
-            <StatTile label="Minutes" value={stats.minutesRead.toLocaleString()} />
-            <StatTile label="Day streak" value={stats.dayStreak} />
-          </div>
-
           <button
             type="button"
             onClick={() => setShowStatEditor((v) => !v)}
             className="font-sans text-sm font-medium text-ink-soft underline-offset-2 hover:underline dark:text-stone-400"
           >
-            {showStatEditor ? 'Hide' : 'Adjust demo values'}
+            {showStatEditor ? 'Hide demo values' : 'Adjust demo values'}
           </button>
 
           {showStatEditor && (

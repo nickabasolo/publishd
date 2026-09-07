@@ -62,6 +62,27 @@ export interface Story {
   chapters: Chapter[]
 }
 
+export interface CommentAuthor {
+  name: string
+  handle: string
+  avatarColor: string
+}
+
+export interface CommentReply {
+  id: string
+  author: CommentAuthor
+  body: string
+  createdAt: number
+}
+
+export interface Comment {
+  id: string
+  author: CommentAuthor
+  body: string
+  createdAt: number
+  replies: CommentReply[]
+}
+
 export type Persona = 'reader' | 'author'
 
 export type ThemePref = 'light' | 'dark' | 'system'

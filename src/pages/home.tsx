@@ -11,10 +11,13 @@ export function HomePage() {
   const navigate = useNavigate()
 
   return (
-    <div className="mx-auto w-full max-w-[560px] pb-32 md:pb-24">
+    <div className="mx-auto w-full max-w-[800px] pb-32 md:pb-24">
       <header className="flex flex-col items-center px-5 pb-16 pt-14 text-center text-ink dark:text-stone-100">
         <h1 className="font-wordmark text-5xl">publishd.</h1>
-        <p className="mt-4 font-sans text-2xl">By authors, for authors.</p>
+        <p className="mt-4 max-w-md font-sans text-lg leading-relaxed text-ink-soft dark:text-stone-400">
+          We&rsquo;re building a community where authors own their work and earn their worth.
+          Read new stories, join the conversation, and directly support the creators you love.
+        </p>
         <div className="mt-8 flex gap-3">
           <button
             type="button"

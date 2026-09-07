@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Lock, X } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { Avatar } from '@/components/avatar'
+import { UserLink } from '@/components/user-link'
 import { cn } from '@/lib/utils'
 import type { Story } from '@/lib/types'
 
@@ -48,10 +48,13 @@ export function ChapterDrawer({ story, currentChapterNumber, open, onClose }: Ch
         <div className="flex items-start justify-between gap-3 border-b border-ink/10 p-4 dark:border-white/10">
           <div className="min-w-0">
             <h2 className="truncate font-serif text-lg leading-tight">{story.title}</h2>
-            <div className="mt-1 flex items-center gap-2 font-sans text-sm text-ink-soft dark:text-stone-400">
-              <Avatar name={story.author.name} color={story.author.avatarColor} size={18} />
-              <span className="truncate">@{story.author.handle}</span>
-            </div>
+            <UserLink
+              handle={story.author.handle}
+              name={story.author.name}
+              avatarColor={story.author.avatarColor}
+              size={18}
+              className="mt-1 font-sans text-sm text-ink-soft dark:text-stone-400"
+            />
           </div>
           <button
             type="button"

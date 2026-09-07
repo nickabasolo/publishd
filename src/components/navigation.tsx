@@ -1,6 +1,7 @@
-import { Home, Heart, Settings, LayoutDashboard, BookMarked, BarChart3 } from 'lucide-react'
+import { Home, Heart, User, LayoutDashboard, BookMarked, BarChart3 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { usePrototype } from '@/context/prototype'
+import { useUser } from '@/hooks/use-user'
 import { cn } from '@/lib/utils'
 
 interface NavItem {
@@ -8,12 +9,6 @@ interface NavItem {
   href: string
   icon: typeof Home
 }
-
-const READER_ITEMS: NavItem[] = [
-  { label: 'Home', href: '/', icon: Home },
-  { label: 'Likes', href: '/likes', icon: Heart },
-  { label: 'Settings', href: '/settings', icon: Settings },
-]
 
 const AUTHOR_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '/author#dashboard', icon: LayoutDashboard },
@@ -24,8 +19,17 @@ const AUTHOR_ITEMS: NavItem[] = [
 export function Navigation() {
   const location = useLocation()
   const { persona } = usePrototype()
-  const navItems = persona === 'author' ? AUTHOR_ITEMS : READER_ITEMS
+  const { user } = useUser()
 
+  const readerItems: NavItem[] = [
+    { label: 'Home', href: '/', icon: Home },
+    { label: 'Likes', href: '/likes', icon: Heart },
+    { label: 'Profile', href: `/u/${user.username}`, icon: User },
+  ]
+  const navItems = persona === 'author' ? AUTHOR_ITEMS : readerItems
+
+  // Exact match — the Profile tab is only "active" on your *own* profile,
+  // not when viewing someone else's.
   const isActive = (href: string) => location.pathname === href.split('#')[0]
 
   return (

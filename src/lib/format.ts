@@ -1,8 +1,8 @@
 // "Now" is pinned so the prototype's relative times stay stable across sessions.
 const NOW = new Date('2026-09-06T09:00:00Z').getTime()
 
-export function formatRelativeTime(iso: string): string {
-  const then = new Date(iso).getTime()
+export function formatRelativeTime(input: string | number): string {
+  const then = typeof input === 'number' ? input : new Date(input).getTime()
   const mins = Math.round((NOW - then) / 60000)
   if (mins < 60) return `${Math.max(mins, 1)}m ago`
   const hours = Math.round(mins / 60)

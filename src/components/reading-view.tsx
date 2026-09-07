@@ -1,11 +1,23 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ChevronLeft, ChevronRight, Eye, List, MessageCircle } from 'lucide-react'
+import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  Heart,
+  List,
+  MessageCircle,
+} from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Avatar } from '@/components/avatar'
+import { UserLink } from '@/components/user-link'
 import { LikeButton } from '@/components/like-button'
+import { CommentThread } from '@/components/comment-thread'
+import { ParagraphCommentSheet } from '@/components/paragraph-comment-sheet'
 import { useLikes } from '@/hooks/use-likes'
 import { useActiveRead } from '@/hooks/use-active-read'
+import { chapterAnchor, paragraphAnchor, useComments } from '@/hooks/use-comments'
+import { useParagraphLikes } from '@/hooks/use-paragraph-likes'
 import { FONT_SIZE_CLASS, LINE_HEIGHT_CLASS, useSettings } from '@/context/settings'
 import { formatCompact, formatRelativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -30,6 +42,9 @@ export function ReadingView({ story, chapter, onOpenChapters }: ReadingViewProps
   const likes = useLikes()
   const { settings } = useSettings()
   const { completeChapter } = useActiveRead()
+  const { count: commentCount } = useComments()
+  const paraLikes = useParagraphLikes()
+  const [activePara, setActivePara] = useState<number | null>(null)
 
   const viewportRef = useRef<HTMLDivElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
@@ -82,14 +97,18 @@ export function ReadingView({ story, chapter, onOpenChapters }: ReadingViewProps
           </button>
         </div>
 
-        <div className="mx-auto max-w-[440px] p-5">
+        <div className="mx-auto max-w-[800px] p-5">
           {/* Metadata — mirrors the preview card */}
-          <div className="flex w-full items-center gap-2">
-            <Avatar name={story.author.name} color={story.author.avatarColor} size={36} />
-            <p className="font-sans text-sm tracking-[-0.15px]">
-              <span className="opacity-90">@{story.author.handle}</span>
-              <span className="opacity-60"> • {formatRelativeTime(story.updatedAt)}</span>
-            </p>
+          <div className="flex w-full items-center gap-2 font-sans text-sm tracking-[-0.15px]">
+            <UserLink
+              handle={story.author.handle}
+              name={story.author.name}
+              avatarColor={story.author.avatarColor}
+              size={36}
+            />
+            <span className="text-ink-soft dark:text-stone-400">
+              • {formatRelativeTime(story.updatedAt)}
+            </span>
           </div>
 
           <h1 className="mt-4 font-serif text-2xl leading-tight">{chapter.title}</h1>
@@ -130,17 +149,59 @@ export function ReadingView({ story, chapter, onOpenChapters }: ReadingViewProps
 
           <hr className="my-6 border-ink/10 dark:border-white/10" />
 
-          {/* Chapter body */}
+          {/* Chapter body — every paragraph is tappable to comment / like */}
           <div
             className={cn(
-              'space-y-4 font-serif',
+              'space-y-2 font-serif',
               FONT_SIZE_CLASS[settings.fontSize],
               LINE_HEIGHT_CLASS[settings.lineHeight],
             )}
           >
-            {chapter.paragraphs.map((p, i) => (
-              <p key={i}>{p}</p>
-            ))}
+            {chapter.paragraphs.map((p, i) => {
+              const anchor = paragraphAnchor(story.slug, chapter.number, i)
+              const cCount = commentCount(anchor)
+              const lTotal = paraLikes.totalLikes(anchor)
+              const liked = paraLikes.has(anchor)
+              const hasActivity = cCount > 0 || lTotal > 0
+              return (
+                <div
+                  key={i}
+                  onClick={() => {
+                    if (!window.getSelection()?.toString()) setActivePara(i)
+                  }}
+                  className="-mx-2 cursor-pointer rounded px-2 py-1 transition-colors hover:bg-ink/[0.03] dark:hover:bg-white/[0.04]"
+                >
+                  <p>
+                    {p}
+                    {hasActivity && (
+                      <span className="ml-2 inline-flex items-baseline gap-2.5 whitespace-nowrap align-baseline font-sans text-xs text-ink-soft dark:text-stone-400">
+                        {lTotal > 0 && (
+                          <span className="inline-flex items-baseline gap-1">
+                            <Heart
+                              className={cn(
+                                'h-3 w-3 translate-y-[0.15em]',
+                                liked && 'fill-rose-500 text-rose-500',
+                              )}
+                              strokeWidth={1.5}
+                            />
+                            {lTotal}
+                          </span>
+                        )}
+                        {cCount > 0 && (
+                          <span className="inline-flex items-baseline gap-1">
+                            <MessageCircle
+                              className="h-3 w-3 translate-y-[0.15em]"
+                              strokeWidth={1.5}
+                            />
+                            {cCount}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )
+            })}
           </div>
           <div ref={endRef} aria-hidden />
 
@@ -150,6 +211,18 @@ export function ReadingView({ story, chapter, onOpenChapters }: ReadingViewProps
               are released on a schedule.
             </div>
           )}
+
+          {/* End-of-chapter comments */}
+          <section className="mt-10 border-t border-ink/10 pt-6 dark:border-white/10">
+            <h2 className="font-sans text-sm font-semibold">
+              Comments
+              {commentCount(chapterAnchor(story.slug, chapter.number)) > 0 &&
+                ` (${commentCount(chapterAnchor(story.slug, chapter.number))})`}
+            </h2>
+            <div className="mt-4">
+              <CommentThread anchor={chapterAnchor(story.slug, chapter.number)} />
+            </div>
+          </section>
 
           {/* Prev / Next */}
           <div className="mt-10 flex items-center justify-between gap-3 border-t border-ink/10 pt-6 font-sans text-sm dark:border-white/10">
@@ -174,6 +247,13 @@ export function ReadingView({ story, chapter, onOpenChapters }: ReadingViewProps
           </div>
         </div>
       </ScrollArea>
+
+      <ParagraphCommentSheet
+        story={story}
+        chapter={chapter}
+        paragraphIndex={activePara}
+        onClose={() => setActivePara(null)}
+      />
     </div>
   )
 }

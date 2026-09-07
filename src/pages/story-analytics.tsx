@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { StatTile } from '@/components/stat-tile'
@@ -5,6 +6,7 @@ import { BarChart } from '@/components/studio/bar-chart'
 import { useStudio } from '@/hooks/use-studio'
 import { getStoryAnalytics } from '@/lib/story-analytics'
 import { formatCompact } from '@/lib/format'
+import { analytics } from '@/lib/analytics/events'
 
 function Sparkline({ points }: { points: number[] }) {
   const max = Math.max(1, ...points)
@@ -31,6 +33,11 @@ export function StoryAnalyticsPage() {
   const studio = useStudio()
 
   const story = studio.getStudioStory(slug)
+
+  useEffect(() => {
+    if (story) analytics.analyticsViewed(slug)
+  }, [story, slug])
+
   if (!story) return <Navigate to="/studio" replace />
 
   const a = getStoryAnalytics(slug)

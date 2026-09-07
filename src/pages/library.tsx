@@ -4,6 +4,7 @@ import { stories } from '@/data'
 import { useLikes } from '@/hooks/use-likes'
 import { useInProgressReads } from '@/hooks/use-reading-progress'
 import { useAuthPrompt } from '@/context/auth-prompt'
+import { analytics } from '@/lib/analytics/events'
 import type { Story } from '@/lib/types'
 
 function latestReadableChapter(story: Story) {
@@ -31,14 +32,17 @@ function StoryRow({
   story,
   to,
   trailing,
+  onClick,
 }: {
   story: Story
   to: string
   trailing?: React.ReactNode
+  onClick?: () => void
 }) {
   return (
     <Link
       to={to}
+      onClick={onClick}
       className="flex items-center gap-4 rounded-xl bg-paper px-5 py-4 shadow-sm transition-colors hover:bg-paper/70 dark:bg-night dark:hover:bg-night/70"
     >
       <div className="min-w-0 flex-1">
@@ -101,6 +105,7 @@ export function LibraryPage() {
                   key={story.id}
                   story={story}
                   to={`/read/${story.slug}/${chapterNumber}`}
+                  onClick={() => analytics.readingResumed(story.slug, 'library')}
                   trailing={
                     <span className="shrink-0 font-sans text-sm font-medium text-ink dark:text-stone-100">
                       Continue · Ch {chapterNumber}

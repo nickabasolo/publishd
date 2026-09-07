@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import { StoryPreviewCard } from '@/components/story-preview-card'
@@ -6,6 +6,7 @@ import { Segmented } from '@/components/ui/segmented'
 import { useFollows } from '@/hooks/use-follows'
 import { useLikes } from '@/hooks/use-likes'
 import { stories } from '@/data'
+import { analytics } from '@/lib/analytics/events'
 
 type Tab = 'discover' | 'following'
 
@@ -26,6 +27,10 @@ export function HomePage() {
       (s) => follows.isFollowing(s.author.handle) || likes.has(s.slug),
     )
   }, [tab, follows, likes])
+
+  useEffect(() => {
+    analytics.feedViewed(tab, feed.length)
+  }, [tab, feed.length])
 
   return (
     <div className="mx-auto w-full max-w-[800px] pb-32 md:pb-24">

@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDataClient } from '@/lib/data'
 import { paragraphAnchor } from '@/hooks/use-comments'
+import { analytics } from '@/lib/analytics/events'
 
 type ChapterLikes = Record<number, { liked: boolean; total: number }>
 
@@ -45,10 +46,15 @@ export function useParagraphLikes(slug: string, chapterNumber: number) {
         ...prev,
         [index]: { liked: !cur.liked, total: cur.total + (cur.liked ? -1 : 1) },
       })
-      return { prev }
+      return { prev, wasLiked: cur.liked }
     },
     onError: (_err, _index, ctx) => {
       if (ctx?.prev) qc.setQueryData(key, ctx.prev)
+    },
+    onSuccess: (_data, _index, ctx) => {
+      // Taxonomy has no "paragraph_unliked" — only the like moment is
+      // interesting for engagement tracking.
+      if (!ctx?.wasLiked) analytics.paragraphLiked(slug, String(chapterNumber))
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['likes', 'paragraph', 'mine'] })

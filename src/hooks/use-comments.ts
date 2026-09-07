@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDataClient } from '@/lib/data'
 import type { AuthoredComment, ChapterCommentCounts, Comment, Page } from '@/lib/data'
+import { analytics } from '@/lib/analytics/events'
 
 export function chapterAnchor(slug: string, chapter: number): string {
   return `${slug}/${chapter}`
@@ -39,19 +40,28 @@ export function useComments(anchor: string) {
   })
   const comments: Comment[] = query.data?.items ?? []
 
+  const parsed = parseAnchor(anchor)
+
   const addComment = useMutation({
     mutationFn: (body: string) => client.comments.add(anchor, body),
-    onSuccess: (comment) => {
+    onSuccess: (comment, body) => {
       qc.setQueryData<Page<Comment>>(key, (old) =>
         old ? { ...old, items: [...old.items, comment] } : { items: [comment], nextCursor: null },
       )
+      analytics.commentPosted({
+        storyId: parsed.slug,
+        chapterId: String(parsed.chapter),
+        isReply: false,
+        isParagraphAnchored: parsed.paragraph !== undefined,
+        bodyLength: body.length,
+      })
     },
   })
 
   const addReply = useMutation({
     mutationFn: ({ commentId, body }: { commentId: string; body: string }) =>
       client.comments.reply(commentId, body),
-    onSuccess: (reply, { commentId }) => {
+    onSuccess: (reply, { commentId, body }) => {
       qc.setQueryData<Page<Comment>>(key, (old) =>
         old
           ? {
@@ -62,6 +72,13 @@ export function useComments(anchor: string) {
             }
           : old,
       )
+      analytics.commentPosted({
+        storyId: parsed.slug,
+        chapterId: String(parsed.chapter),
+        isReply: true,
+        isParagraphAnchored: parsed.paragraph !== undefined,
+        bodyLength: body.length,
+      })
     },
   })
 

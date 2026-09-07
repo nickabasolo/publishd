@@ -1,12 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Search as SearchIcon } from 'lucide-react'
 import { TagLink } from '@/components/tag-link'
 import { allTags, stories } from '@/data'
+import { analytics } from '@/lib/analytics/events'
 
 export function SearchPage() {
   const [q, setQ] = useState('')
   const query = q.trim().toLowerCase()
+  const lastLogged = useRef<string | null>(null)
 
   const results = useMemo(() => {
     if (!query) return []
@@ -17,6 +19,16 @@ export function SearchPage() {
         .includes(query),
     )
   }, [query])
+
+  // Log once per settled query, not on every keystroke's re-render.
+  useEffect(() => {
+    if (!query || lastLogged.current === query) return
+    const id = window.setTimeout(() => {
+      lastLogged.current = query
+      analytics.searchPerformed(query, results.length)
+    }, 400)
+    return () => window.clearTimeout(id)
+  }, [query, results.length])
 
   const popular = allTags().slice(0, 12)
 
@@ -40,10 +52,12 @@ export function SearchPage() {
           </p>
         ) : (
           <ul className="mt-4 space-y-1">
-            {results.map((s) => (
+            {results.map((s, i) => (
               <li key={s.id}>
                 <Link
                   to={`/s/${s.slug}`}
+                  state={{ source: 'search' }}
+                  onClick={() => analytics.searchResultClicked(i, results.length)}
                   className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-ink/[0.03] dark:hover:bg-white/[0.04]"
                 >
                   <span

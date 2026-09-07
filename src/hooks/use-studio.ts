@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDataClient } from '@/lib/data'
 import { useAccount } from '@/context/account'
 import { countWords, type ChapterState, type StudioChapter, type StudioStory } from '@/data/studio'
+import { analytics } from '@/lib/analytics/events'
+import { throttled } from '@/lib/analytics/throttle'
 
 function uid(): string {
   try {
@@ -55,6 +57,7 @@ export function useStudio() {
   function useListMutation<TArgs>(
     persist: (args: TArgs) => Promise<void>,
     optimistic: (list: StudioStory[], args: TArgs) => StudioStory[],
+    onSuccess?: (args: TArgs) => void,
   ) {
     return useMutation({
       mutationFn: persist,
@@ -66,6 +69,7 @@ export function useStudio() {
       onError: (_err, _args, ctx) => {
         if (ctx?.prev) qc.setQueryData(key, ctx.prev)
       },
+      onSuccess: onSuccess ? (_data, args) => onSuccess(args) : undefined,
     })
   }
 
@@ -83,6 +87,13 @@ export function useStudio() {
         if (patch.body !== undefined) next.wordCount = countWords(patch.body)
         return next
       }),
+    ({ chapterId, patch }) => {
+      // Throttled to once a minute per chapter — not every autosave tick.
+      if (patch.body === undefined) return
+      throttled(`draft_saved:${chapterId}`, 60_000, () => {
+        analytics.draftSaved(chapterId, countWords(patch.body as string))
+      })
+    },
   )
 
   const setChapterStateMutation = useListMutation(
@@ -94,6 +105,18 @@ export function useStudio() {
         state,
         scheduledAt: state === 'scheduled' ? c.scheduledAt : undefined,
       })),
+    ({ slug, chapterId, state }) => {
+      if (state !== 'published') return
+      const before = getStudioStory(slug)?.chapters.find((c) => c.id === chapterId)
+      if (!before) return
+      analytics.chapterPublished({
+        storyId: slug,
+        chapterId,
+        chapterNumber: before.number,
+        wordCount: before.wordCount,
+        wasScheduled: before.state === 'scheduled',
+      })
+    },
   )
 
   const scheduleChapterMutation = useListMutation(
@@ -101,6 +124,10 @@ export function useStudio() {
       client.studio.scheduleChapter(slug, chapterId, at),
     (list, { slug, chapterId, at }) =>
       mutateChapterList(list, slug, chapterId, (c) => ({ ...c, state: 'scheduled', scheduledAt: at })),
+    ({ chapterId, at }) => {
+      const leadTimeHours = Math.max(0, Math.round((at - Date.now()) / 3_600_000))
+      analytics.chapterScheduled(chapterId, leadTimeHours)
+    },
   )
 
   const setPaywallMutation = useListMutation(
@@ -155,6 +182,7 @@ export function useStudio() {
           (list ?? []).map((s) => (s.slug === ctx.tempSlug ? { ...s, slug } : s)),
         )
       }
+      analytics.storyCreated()
     },
   })
 
@@ -199,6 +227,7 @@ export function useStudio() {
           ),
         )
       }
+      analytics.chapterCreated(slug)
     },
   })
 

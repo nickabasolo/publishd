@@ -18,6 +18,9 @@ export function ReadPage() {
 
   useEffect(() => {
     if (story && chapter && !chapter.locked) {
+      // `source` defaults to 'direct' here; reading_resumed (fired from the
+      // library and the now-reading bar) covers the two other real sources
+      // — see the plan's discovery taxonomy for the full source enum.
       startChapter(chapter.number)
     }
   }, [story, chapter, startChapter])

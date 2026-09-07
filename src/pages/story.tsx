@@ -1,4 +1,5 @@
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
 import { Eye, MessageCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { UserLink } from '@/components/user-link'
@@ -9,13 +10,26 @@ import { useLikes } from '@/hooks/use-likes'
 import { useReadingProgress } from '@/hooks/use-reading-progress'
 import { getStory } from '@/data'
 import { formatCompact, formatRelativeTime } from '@/lib/format'
+import { analytics } from '@/lib/analytics/events'
+
+type ViewSource = 'feed' | 'search' | 'tag' | 'profile' | 'notification' | 'direct'
 
 export function StoryPage() {
   const { slug = '' } = useParams()
+  const location = useLocation()
   const likes = useLikes()
   const { progress } = useReadingProgress(slug)
 
   const story = getStory(slug)
+
+  useEffect(() => {
+    if (!story) return
+    const source = ((location.state as { source?: ViewSource } | null)?.source ?? 'direct') as ViewSource
+    analytics.storyViewed(story.slug, source)
+    // Only re-fire when the story itself changes, not on every state object identity change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [story?.slug])
+
   if (!story) return <Navigate to="/" replace />
 
   const totalWords = story.chapters.reduce((n, c) => n + c.wordCount, 0)

@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDataClient } from '@/lib/data'
 import type { Notification, Page } from '@/lib/data'
+import { analytics } from '@/lib/analytics/events'
 
 export type { Notification }
 export type FeedNotification = Notification
@@ -37,13 +38,17 @@ export function useNotifications() {
           items: prevList.items.map((n) => (n.id === id ? { ...n, read: true } : n)),
         })
       }
-      const wasUnread = prevList?.items.find((n) => n.id === id)?.read === false
+      const target = prevList?.items.find((n) => n.id === id)
+      const wasUnread = target?.read === false
       if (wasUnread && prevCount !== undefined) qc.setQueryData(COUNT_KEY, Math.max(0, prevCount - 1))
-      return { prevList, prevCount }
+      return { prevList, prevCount, type: target?.type }
     },
     onError: (_err, _id, ctx) => {
       if (ctx?.prevList) qc.setQueryData(LIST_KEY, ctx.prevList)
       if (ctx?.prevCount !== undefined) qc.setQueryData(COUNT_KEY, ctx.prevCount)
+    },
+    onSuccess: (_data, _id, ctx) => {
+      if (ctx?.type) analytics.notificationOpened(ctx.type)
     },
   })
 

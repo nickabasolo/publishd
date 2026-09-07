@@ -10,6 +10,7 @@ import {
 import { AuthSheet } from '@/components/auth-sheet'
 import { useAccount } from '@/context/account'
 import { signInWithOAuth, type OAuthProvider } from '@/lib/data/supabase/auth'
+import { analytics } from '@/lib/analytics/events'
 
 interface PromptOpts {
   /** e.g. "like this", "comment", "follow Mara" — completes "Sign in to …". */
@@ -32,31 +33,49 @@ export function AuthPromptProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [action, setAction] = useState<string | undefined>(undefined)
   const onCompleteRef = useRef<(() => void) | undefined>(undefined)
+  // Tracks whether the open sheet ended in a sign-in, so closing it doesn't
+  // also fire a "dismissed" event on top of "converted".
+  const convertedRef = useRef(false)
 
   const promptAuth = useCallback((opts?: PromptOpts) => {
     setAction(opts?.action)
     onCompleteRef.current = opts?.onComplete
+    convertedRef.current = false
+    analytics.authPromptShown(opts?.action ?? 'unspecified')
     setOpen(true)
   }, [])
+
+  const handleClose = useCallback(() => {
+    if (!convertedRef.current) analytics.authPromptDismissed(action ?? 'unspecified')
+    setOpen(false)
+  }, [action])
 
   // Local backend: the fake, instant sign-in the prototype always had.
   // Provider is ignored — every button does the same thing.
   const handleLocalSignIn = useCallback(() => {
+    convertedRef.current = true
+    analytics.authPromptConverted(action ?? 'unspecified', 'local')
     setAccountId('reader')
     setOpen(false)
     const cb = onCompleteRef.current
     onCompleteRef.current = undefined
     if (cb) requestAnimationFrame(cb)
-  }, [setAccountId])
+  }, [setAccountId, action])
 
   // Supabase backend: real OAuth. This navigates the browser away to the
   // provider and back — there is no synchronous "signed in" moment here, so
   // `onComplete` cannot be safely replayed after a redirect round trip and
   // is intentionally not invoked. account.tsx's session listener picks up
   // the resulting session once the redirect returns.
-  const handleOAuthSignIn = useCallback(async (provider: OAuthProvider) => {
-    await signInWithOAuth(provider)
-  }, [])
+  const handleOAuthSignIn = useCallback(
+    async (provider: OAuthProvider) => {
+      convertedRef.current = true
+      analytics.authPromptConverted(action ?? 'unspecified', provider)
+      analytics.signupStarted(provider)
+      await signInWithOAuth(provider)
+    },
+    [action],
+  )
 
   const value = useMemo<AuthPromptValue>(
     () => ({ isGuest: accountId === 'guest', promptAuth }),
@@ -69,7 +88,7 @@ export function AuthPromptProvider({ children }: { children: ReactNode }) {
       <AuthSheet
         open={open}
         action={action}
-        onClose={() => setOpen(false)}
+        onClose={handleClose}
         onSignIn={backend === 'supabase' ? handleOAuthSignIn : handleLocalSignIn}
       />
     </AuthPromptContext.Provider>

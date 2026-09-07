@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDataClient } from '@/lib/data'
 import { likedStorySlugs } from '@/data/demo-state'
+import { analytics } from '@/lib/analytics/events'
 
 const KEY = ['likes', 'story', 'mine'] as const
 
@@ -24,14 +25,16 @@ export function useLikes() {
     onMutate: async (slug) => {
       await qc.cancelQueries({ queryKey: KEY })
       const prev = qc.getQueryData<string[]>(KEY) ?? liked
-      qc.setQueryData<string[]>(
-        KEY,
-        prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug],
-      )
-      return { prev }
+      const wasLiked = prev.includes(slug)
+      qc.setQueryData<string[]>(KEY, wasLiked ? prev.filter((s) => s !== slug) : [...prev, slug])
+      return { prev, wasLiked }
     },
     onError: (_err, _slug, ctx) => {
       if (ctx?.prev) qc.setQueryData(KEY, ctx.prev)
+    },
+    onSuccess: (_data, slug, ctx) => {
+      if (ctx?.wasLiked) analytics.storyUnliked(slug)
+      else analytics.storyLiked(slug)
     },
   })
 

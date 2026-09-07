@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import { StoryPreviewCard } from '@/components/story-preview-card'
 import { getStoriesByTag } from '@/data'
+import { analytics } from '@/lib/analytics/events'
 
 function safeDecode(s: string): string {
   try {
@@ -13,6 +15,11 @@ function safeDecode(s: string): string {
 export function TagPage() {
   const { tag: raw = '' } = useParams()
   const tag = safeDecode(raw)
+
+  useEffect(() => {
+    if (tag) analytics.tagViewed(tag)
+  }, [tag])
+
   if (!tag) return <Navigate to="/" replace />
 
   const results = getStoriesByTag(tag)

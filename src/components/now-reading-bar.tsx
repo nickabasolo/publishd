@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { useInProgressReads, useReadingProgress } from '@/hooks/use-reading-progress'
 import { cn } from '@/lib/utils'
+import { analytics } from '@/lib/analytics/events'
 
 /**
  * "Now reading" bar (à la Spotify's now-playing). Appears only when the reader is
@@ -45,7 +46,10 @@ export function NowReadingBar() {
     >
       <button
         type="button"
-        onClick={() => navigate(target)}
+        onClick={() => {
+          analytics.readingResumed(story.slug, 'now_reading_bar')
+          navigate(target)
+        }}
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
       >
         <span

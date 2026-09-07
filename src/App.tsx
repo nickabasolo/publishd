@@ -1,4 +1,5 @@
 // HashRouter so deep links + refreshes work on GitHub Pages (static host, no SPA rewrite).
+import { useEffect } from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Layout } from '@/components/layout'
@@ -6,6 +7,10 @@ import { AccountProvider } from '@/context/account'
 import { AuthPromptProvider } from '@/context/auth-prompt'
 import { SettingsProvider } from '@/context/settings'
 import { DataClientProvider } from '@/lib/data'
+import { ConsentBanner } from '@/components/consent-banner'
+import { ErrorBoundary } from '@/components/error-boundary'
+import { initAnalytics } from '@/lib/analytics/posthog'
+import { installGlobalErrorTracking } from '@/lib/analytics/error-tracking'
 import { HomePage } from '@/pages/home'
 import { LibraryPage } from '@/pages/library'
 import { NotificationsPage } from '@/pages/notifications'
@@ -34,13 +39,20 @@ const queryClient = new QueryClient({
 })
 
 function App() {
+  useEffect(() => {
+    initAnalytics()
+    installGlobalErrorTracking()
+  }, [])
+
   return (
-    <QueryClientProvider client={queryClient}>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
       <DataClientProvider>
         <HashRouter>
           <SettingsProvider>
             <AccountProvider>
               <AuthPromptProvider>
+                <ConsentBanner />
                 <Routes>
                   <Route element={<Layout />}>
                     <Route path="/" element={<HomePage />} />
@@ -66,6 +78,7 @@ function App() {
         </HashRouter>
       </DataClientProvider>
     </QueryClientProvider>
+    </ErrorBoundary>
   )
 }
 

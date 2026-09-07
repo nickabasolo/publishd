@@ -3,6 +3,7 @@ import { useLocalStorage } from '@/lib/storage'
 import type { AccountId } from '@/data/accounts'
 import { onAuthStateChange } from '@/lib/data/supabase/auth'
 import { supabase } from '@/lib/data/supabase/supabase-browser'
+import { identifyUser, resetIdentity } from '@/lib/analytics/posthog'
 
 interface AccountValue {
   accountId: AccountId
@@ -38,8 +39,12 @@ function useSupabaseAccount(): AccountValue {
     const unsubscribe = onAuthStateChange((session) => {
       if (!session) {
         if (!cancelled) setAccountIdState('guest')
+        resetIdentity()
         return
       }
+      // Users are identified by profile_id UUID only — never email/handle
+      // (see the plan's instrumentation hard rule).
+      identifyUser(session.user.id)
       supabase
         .from('profiles')
         .select('is_author')

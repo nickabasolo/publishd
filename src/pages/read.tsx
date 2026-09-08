@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ReadingView } from '@/components/reading-view'
@@ -18,7 +18,10 @@ export function ReadPage() {
     queryFn: () => client.stories.getBySlug(slug as string),
     enabled: Boolean(slug),
   })
-  const story = storyQuery.data ? toLegacyStory(storyQuery.data) : null
+  const story = useMemo(
+    () => (storyQuery.data ? toLegacyStory(storyQuery.data) : null),
+    [storyQuery.data],
+  )
 
   const requested = chapterNumber ? Number(chapterNumber) : 1
   const chapterQuery = useQuery({

@@ -68,15 +68,19 @@ export function useReadingProgress(storyId: string) {
     },
   })
 
+  const startChapterMutate = startChapterMutation.mutate
+  const completeChapterMutate = completeChapterMutation.mutate
+  const dismissMutate = dismissMutation.mutate
+
   const startChapter = useCallback(
-    (chapterNumber: number, source = 'direct') => startChapterMutation.mutate({ chapterNumber, source }),
-    [startChapterMutation],
+    (chapterNumber: number, source = 'direct') => startChapterMutate({ chapterNumber, source }),
+    [startChapterMutate],
   )
   const completeChapter = useCallback(
-    (chapterNumber: number) => completeChapterMutation.mutate(chapterNumber),
-    [completeChapterMutation],
+    (chapterNumber: number) => completeChapterMutate(chapterNumber),
+    [completeChapterMutate],
   )
-  const dismiss = useCallback(() => dismissMutation.mutate(), [dismissMutation])
+  const dismiss = useCallback(() => dismissMutate(), [dismissMutate])
 
   return { progress, startChapter, completeChapter, dismiss }
 }

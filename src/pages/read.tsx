@@ -1,20 +1,39 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { ReadingView } from '@/components/reading-view'
 import { ChapterDrawer } from '@/components/chapter-drawer'
-import { getStory } from '@/data'
+import { Loading } from '@/components/ui/loading'
+import { useDataClient } from '@/lib/data'
+import { toLegacyStory } from '@/lib/data/adapt'
 import { useReadingProgress } from '@/hooks/use-reading-progress'
 
 export function ReadPage() {
   const { slug, chapterNumber } = useParams()
+  const client = useDataClient()
   const [drawerOpen, setDrawerOpen] = useState(false)
 
-  const story = getStory(slug)
+  const storyQuery = useQuery({
+    queryKey: ['stories', 'bySlug', slug],
+    queryFn: () => client.stories.getBySlug(slug as string),
+    enabled: Boolean(slug),
+  })
+  const story = storyQuery.data ? toLegacyStory(storyQuery.data) : null
+
   const requested = chapterNumber ? Number(chapterNumber) : 1
-  const chapter =
-    story?.chapters.find((c) => c.number === requested) ?? story?.chapters[0]
+  const chapterQuery = useQuery({
+    queryKey: ['chapters', 'get', slug, requested],
+    queryFn: () => client.chapters.get(slug as string, requested),
+    enabled: Boolean(slug),
+  })
+  // Mirrors the old `story.chapters.find(...) ?? story.chapters[0]` fallback:
+  // if the requested chapter number doesn't exist, fall back to the story's
+  // first chapter rather than 404ing.
+  const chapter = chapterQuery.data ?? story?.chapters[0] ?? null
 
   const { startChapter } = useReadingProgress(story?.slug ?? '')
+
+  const isLoading = storyQuery.isLoading || chapterQuery.isLoading
 
   useEffect(() => {
     if (story && chapter && !chapter.locked) {
@@ -24,6 +43,14 @@ export function ReadPage() {
       startChapter(chapter.number)
     }
   }, [story, chapter, startChapter])
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full items-center justify-center bg-paper dark:bg-night">
+        <Loading />
+      </div>
+    )
+  }
 
   if (!story || !chapter) return <Navigate to="/" replace />
 

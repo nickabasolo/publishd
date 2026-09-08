@@ -254,6 +254,81 @@ export const localDataClient: DataClient = {
         .map(([tag, count]) => ({ tag, count }))
         .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
     },
+    // Real local data, not hash-fabrication (see src/lib/story-analytics.ts,
+    // deleted once callers are repointed here). The local backend is a
+    // single-account demo with no real cross-reader traffic, so a few
+    // fields are honestly limited rather than invented:
+    //  - totalReads/likes/comments start from the story's real seed stats
+    //    (`stats.hits/likes/comments`, authored demo content — not a hash)
+    //    plus whatever the current local session has actually added
+    //    (a toggled like, locally posted comments).
+    //  - subscribers reflects only the current local user's own follow
+    //    toggle — there is no other "reader" in a single-account demo.
+    //  - readsByChapter/readsLast30 have no real per-chapter or per-day
+    //    breakdown in local storage, so the real total is spread evenly
+    //    rather than perturbed with random-looking hash noise.
+    //  - topPassages comes from the real seeded paragraph-like data
+    //    (PARAGRAPH_LIKE_SEED), same as before, minus the hash fallback.
+    // Author-only: resolves to null unless the current local account owns
+    // a Studio story at this slug.
+    async getAnalytics(slug) {
+      const owned = loadStudioStories(currentUserRecord().username).some((s) => s.slug === slug)
+      if (!owned) return null
+
+      const story = getStory(slug)
+      const chapters = story?.chapters ?? []
+
+      const localLiked = readLocal<string[]>('likes', likedStorySlugs).includes(slug)
+      const likes = (story?.stats.likes ?? 0) + (localLiked && !likedStorySlugs.includes(slug) ? 1 : 0)
+
+      // listCommentsRaw already merges seeded + locally-posted comments for
+      // an anchor, so summing every anchor for this story is the real total
+      // — no separate addition of `story.stats.comments` needed (that would
+      // double-count the seeded half).
+      let comments = 0
+      for (const c of chapters) {
+        comments += listCommentsRaw(chapterAnchor(slug, c.number)).reduce((n, c2) => n + 1 + c2.replies.length, 0)
+        c.paragraphs.forEach((_, i) => {
+          comments += listCommentsRaw(paragraphAnchor(slug, c.number, i)).reduce((n, c2) => n + 1 + c2.replies.length, 0)
+        })
+      }
+
+      const subscribers = readLocal<string[]>('storyFollows', []).includes(slug) ? 1 : 0
+
+      const totalReads = story?.stats.hits ?? 0
+      const chapterCount = Math.max(chapters.length, 1)
+      const readsByChapter = chapters.length
+        ? chapters.map((c) => ({ label: `${c.number}`, value: Math.round(totalReads / chapterCount) }))
+        : []
+      const readsLast30 = Array.from({ length: 30 }, () => Math.round(totalReads / 30))
+
+      const progress = loadReadingProgress()[slug]
+      const completionRate = progress
+        ? progress.completed
+          ? 1
+          : Math.min(1, (progress.chapterNumber ?? 1) / chapterCount)
+        : 0
+
+      const topPassages = Object.entries(PARAGRAPH_LIKE_SEED)
+        .filter(([k]) => k.startsWith(`${slug}/`))
+        .map(([k, likeCount]) => {
+          const [, chapter, paragraph] = k.split('/')
+          return { chapter: Number(chapter), paragraph: Number(paragraph), likes: likeCount }
+        })
+        .sort((a, b) => b.likes - a.likes)
+        .slice(0, 4)
+
+      return {
+        totalReads,
+        likes,
+        comments,
+        subscribers,
+        completionRate,
+        readsByChapter,
+        readsLast30,
+        topPassages,
+      }
+    },
   },
 
   chapters: {

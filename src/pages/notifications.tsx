@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { useQueries } from '@tanstack/react-query'
 import {
   Bell,
   BookOpen,
@@ -11,7 +12,7 @@ import {
 import { Avatar } from '@/components/avatar'
 import { useNotifications, type FeedNotification } from '@/hooks/use-notifications'
 import { useAuthPrompt } from '@/context/auth-prompt'
-import { getStory } from '@/data'
+import { useDataClient } from '@/lib/data'
 import { formatRelativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { NotificationType } from '@/lib/data'
@@ -25,10 +26,10 @@ const ICON: Record<NotificationType, typeof Bell> = {
   'reads-milestone': TrendingUp,
 }
 
-function describe(n: FeedNotification): { text: string; href: string } {
+function describe(n: FeedNotification, storyTitles: Map<string, string>): { text: string; href: string } {
   const actorHandle = n.actor?.handle ?? n.actorId
   const actor = actorHandle ? `@${actorHandle}` : 'Someone'
-  const title = getStory(n.storySlug)?.title ?? 'a story'
+  const title = (n.storySlug && storyTitles.get(n.storySlug)) ?? 'a story'
   const chapterHref =
     n.storySlug && n.chapterNumber
       ? `/read/${n.storySlug}/${n.chapterNumber}`
@@ -81,9 +82,26 @@ function GuestGate() {
 }
 
 export function NotificationsPage() {
+  const client = useDataClient()
   const { isGuest } = useAuthPrompt()
   const { items, unreadCount, markRead, markAllRead } = useNotifications()
   const navigate = useNavigate()
+
+  // Notifications carry only `storySlug` — story titles are fetched through
+  // the data contract (not the raw stories.json) and joined here, one query
+  // per distinct story referenced across the list.
+  const storySlugs = [...new Set(items.map((n) => n.storySlug).filter((s): s is string => Boolean(s)))]
+  const storyQueries = useQueries({
+    queries: storySlugs.map((slug) => ({
+      queryKey: ['stories', 'bySlug', slug],
+      queryFn: () => client.stories.getBySlug(slug),
+    })),
+  })
+  const storyTitles = new Map<string, string>()
+  storySlugs.forEach((slug, i) => {
+    const title = storyQueries[i]?.data?.title
+    if (title) storyTitles.set(slug, title)
+  })
 
   if (isGuest) return <GuestGate />
 
@@ -110,7 +128,7 @@ export function NotificationsPage() {
         ) : (
           <ul className="overflow-hidden rounded-xl bg-paper shadow-sm dark:bg-night">
             {items.map((n) => {
-              const { text, href } = describe(n)
+              const { text, href } = describe(n, storyTitles)
               const Icon = ICON[n.type]
               const person = n.actor
               return (

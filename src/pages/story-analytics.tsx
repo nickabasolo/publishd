@@ -1,10 +1,12 @@
 import { useEffect } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { StatTile } from '@/components/stat-tile'
 import { BarChart } from '@/components/studio/bar-chart'
+import { Loading } from '@/components/ui/loading'
 import { useStudio } from '@/hooks/use-studio'
-import { getStoryAnalytics } from '@/lib/story-analytics'
+import { useDataClient } from '@/lib/data'
 import { formatCompact } from '@/lib/format'
 import { analytics } from '@/lib/analytics/events'
 
@@ -31,6 +33,7 @@ function Sparkline({ points }: { points: number[] }) {
 export function StoryAnalyticsPage() {
   const { slug = '' } = useParams()
   const studio = useStudio()
+  const client = useDataClient()
 
   const story = studio.getStudioStory(slug)
 
@@ -38,9 +41,34 @@ export function StoryAnalyticsPage() {
     if (story) analytics.analyticsViewed(slug)
   }, [story, slug])
 
+  const analyticsQuery = useQuery({
+    queryKey: ['stories', 'analytics', slug],
+    queryFn: () => client.stories.getAnalytics(slug),
+    enabled: Boolean(story),
+  })
+
   if (!story) return <Navigate to="/studio" replace />
 
-  const a = getStoryAnalytics(slug)
+  if (analyticsQuery.isLoading) {
+    return (
+      <div className="min-h-full bg-surface px-4 py-6 pb-32 dark:bg-surface-night md:py-10 md:pb-24">
+        <div className="mx-auto max-w-2xl">
+          <Loading />
+        </div>
+      </div>
+    )
+  }
+
+  const a = analyticsQuery.data ?? {
+    totalReads: 0,
+    likes: 0,
+    comments: 0,
+    subscribers: 0,
+    completionRate: 0,
+    readsByChapter: [],
+    readsLast30: [],
+    topPassages: [],
+  }
 
   return (
     <div className="min-h-full bg-surface px-4 py-6 pb-32 dark:bg-surface-night md:py-10 md:pb-24">
@@ -100,7 +128,7 @@ export function StoryAnalyticsPage() {
         </section>
 
         <p className="font-sans text-xs text-ink-soft dark:text-stone-500">
-          Illustrative data — analytics are still being designed.
+          Reflects real reads, likes, comments and follows for this story.
         </p>
       </div>
     </div>

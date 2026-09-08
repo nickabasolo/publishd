@@ -14,6 +14,7 @@ import type {
   ReadingProgress,
   ReadingStats,
   Story,
+  StoryAnalytics,
   StudioChapter,
   StudioStory,
 } from './types'
@@ -31,6 +32,15 @@ export interface DataClient {
     byTag(tag: string, params?: PageParams): Promise<Page<Story>>
     search(query: string, params?: PageParams): Promise<Page<Story>>
     allTags(): Promise<{ tag: string; count: number }[]>
+    /**
+     * Real per-story analytics (reads, likes, comments, subscribers,
+     * completion rate, a 30-day trend, and top-liked passages), aggregated
+     * from actual reading/social data — never hash-fabricated. Author-only:
+     * resolves to `null` for a story that doesn't exist or isn't owned by
+     * the caller, mirroring the `T | null` convention elsewhere in this
+     * interface rather than throwing.
+     */
+    getAnalytics(slug: string): Promise<StoryAnalytics | null>
   }
 
   chapters: {

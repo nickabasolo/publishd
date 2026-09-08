@@ -444,6 +444,40 @@ export const supabaseDataClient: DataClient = {
         .map(([tag, count]) => ({ tag, count }))
         .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
     },
+
+    // Real aggregate query via `get_story_analytics` (0015_story_analytics.sql),
+    // never hash-fabricated. The RPC is security-definer and checks
+    // ownership internally (auth.uid() must be the story's author_id) since
+    // read_events/reading_progress are RLS-private to their own profile_id
+    // and can't otherwise be aggregated "across all readers of my story"
+    // under RLS. It returns zero rows for a story that doesn't exist or
+    // isn't owned by the caller, which this maps to `null`.
+    async getAnalytics(slug) {
+      const { data, error } = await supabase.rpc('get_story_analytics', { p_story_slug: slug })
+      if (error) throw error
+      const row = Array.isArray(data) ? data[0] : data
+      if (!row) return null
+      const r = row as {
+        total_reads: number
+        likes: number
+        comments: number
+        subscribers: number
+        completion_rate: number
+        reads_by_chapter: { label: string; value: number }[]
+        reads_last_30: number[]
+        top_passages: { chapter: number; paragraph: number; likes: number }[]
+      }
+      return {
+        totalReads: r.total_reads ?? 0,
+        likes: r.likes ?? 0,
+        comments: r.comments ?? 0,
+        subscribers: r.subscribers ?? 0,
+        completionRate: r.completion_rate ?? 0,
+        readsByChapter: r.reads_by_chapter ?? [],
+        readsLast30: r.reads_last_30 ?? [],
+        topPassages: r.top_passages ?? [],
+      }
+    },
   },
 
   chapters: {

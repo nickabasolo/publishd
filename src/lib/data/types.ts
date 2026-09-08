@@ -80,6 +80,26 @@ export interface Story {
   chapters: Chapter[]
 }
 
+// ---- Analytics --------------------------------------------------------------
+
+/**
+ * Per-story analytics, author-only. Backed by real aggregate queries against
+ * `read_events`/`comments`/likes/follows (Supabase) or their local-storage
+ * equivalents (local) — never fabricated from a hash. See
+ * `src/lib/story-analytics.ts` (deleted once this ships) and Phase 8 of the
+ * project plan.
+ */
+export interface StoryAnalytics {
+  totalReads: number
+  likes: number
+  comments: number
+  subscribers: number
+  completionRate: number // 0..1 — completed / started read_events
+  readsByChapter: { label: string; value: number }[]
+  readsLast30: number[] // one entry per day, oldest first
+  topPassages: { chapter: number; paragraph: number; likes: number }[]
+}
+
 // ---- Comments ---------------------------------------------------------------
 
 export interface CommentReply {

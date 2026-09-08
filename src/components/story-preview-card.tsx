@@ -60,6 +60,7 @@ export function StoryPreviewCard({ story }: { story: Story }) {
         </span>
         <Link
           to={`/s/${story.slug}`}
+          state={{ source: 'feed' }}
           onClick={(e) => e.stopPropagation()}
           className="font-serif hover:underline"
         >

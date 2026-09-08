@@ -166,7 +166,7 @@ export function StoryManagerPage() {
             </h2>
             <button
               type="button"
-              onClick={() => navigate(`/studio/${slug}/${studio.addChapter(slug)}`)}
+              onClick={async () => navigate(`/studio/${slug}/${await studio.addChapter(slug)}`)}
               className="inline-flex items-center gap-1.5 font-sans text-sm font-medium text-ink-soft hover:text-ink dark:text-stone-400"
             >
               <Plus className="h-4 w-4" />

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { X } from 'lucide-react'
-import { useActiveRead } from '@/hooks/use-active-read'
-import { getStory } from '@/data'
+import { useInProgressReads, useReadingProgress } from '@/hooks/use-reading-progress'
 import { cn } from '@/lib/utils'
+import { analytics } from '@/lib/analytics/events'
 
 /**
  * "Now reading" bar (à la Spotify's now-playing). Appears only when the reader is
@@ -11,13 +11,17 @@ import { cn } from '@/lib/utils'
  * the ✕ retires it. Reaching the end of a chapter clears it too.
  */
 export function NowReadingBar() {
-  const { activeRead, dismiss } = useActiveRead()
+  const { items } = useInProgressReads()
+  // Most recently active in-progress read — there's normally only one anyway.
+  const top = items[0]
+  const { dismiss } = useReadingProgress(top?.storyId ?? '')
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [entered, setEntered] = useState(false)
 
   const inReader = pathname.startsWith('/read/')
-  const visible = Boolean(activeRead) && !activeRead?.completed && !inReader
+  const story = top?.story
+  const visible = Boolean(top) && Boolean(story) && !inReader
 
   useEffect(() => {
     if (!visible) {
@@ -28,11 +32,10 @@ export function NowReadingBar() {
     return () => cancelAnimationFrame(id)
   }, [visible])
 
-  const story = getStory(activeRead?.slug)
-  if (!visible || !activeRead || !story) return null
+  if (!visible || !top || !story) return null
 
-  const chapter = story.chapters.find((c) => c.number === activeRead.chapterNumber)
-  const target = `/read/${story.slug}/${activeRead.chapterNumber}`
+  const chapter = story.chapters.find((c) => c.number === top.chapterNumber)
+  const target = `/read/${story.slug}/${top.chapterNumber}`
 
   return (
     <div
@@ -43,7 +46,10 @@ export function NowReadingBar() {
     >
       <button
         type="button"
-        onClick={() => navigate(target)}
+        onClick={() => {
+          analytics.readingResumed(story.slug, 'now_reading_bar')
+          navigate(target)
+        }}
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
       >
         <span
@@ -56,7 +62,7 @@ export function NowReadingBar() {
             {story.title}
           </span>
           <span className="block truncate font-sans text-xs text-ink-soft dark:text-stone-400">
-            Chapter {activeRead.chapterNumber}
+            Chapter {top.chapterNumber}
             {chapter ? ` · ${chapter.title}` : ''}
           </span>
         </span>

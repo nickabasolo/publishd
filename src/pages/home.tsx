@@ -1,31 +1,40 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { Search } from 'lucide-react'
 import { StoryPreviewCard } from '@/components/story-preview-card'
 import { Segmented } from '@/components/ui/segmented'
+import { Loading } from '@/components/ui/loading'
 import { useFollows } from '@/hooks/use-follows'
-import { useLikes } from '@/hooks/use-likes'
-import { stories } from '@/data'
+import { useDataClient } from '@/lib/data'
+import { toLegacyStory } from '@/lib/data/adapt'
+import { analytics } from '@/lib/analytics/events'
 
 type Tab = 'discover' | 'following'
 
-// Most recently updated first — the serialized-fiction sort.
-const byRecency = [...stories].sort(
-  (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-)
+const FEED_LIMIT = 50
 
 export function HomePage() {
   const navigate = useNavigate()
+  const client = useDataClient()
   const follows = useFollows()
-  const likes = useLikes()
   const [tab, setTab] = useState<Tab>('discover')
 
-  const feed = useMemo(() => {
-    if (tab === 'discover') return byRecency
-    return byRecency.filter(
-      (s) => follows.isFollowing(s.author.handle) || likes.has(s.slug),
-    )
-  }, [tab, follows, likes])
+  const query = useQuery({
+    queryKey: ['stories', 'feed', tab, tab === 'following' ? follows.following : null],
+    queryFn: () =>
+      client.stories.feed({
+        limit: FEED_LIMIT,
+        following: tab === 'following' ? follows.following : undefined,
+      }),
+  })
+  const feed = (query.data?.items ?? []).map(toLegacyStory)
+  const isLoading = query.isLoading
+
+  useEffect(() => {
+    if (!isLoading) analytics.feedViewed(tab, feed.length)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, feed.length, isLoading])
 
   return (
     <div className="mx-auto w-full max-w-[800px] pb-32 md:pb-24">
@@ -72,7 +81,11 @@ export function HomePage() {
         </Link>
       </div>
 
-      {feed.length === 0 ? (
+      {isLoading ? (
+        <div className="mx-4 sm:mx-5">
+          <Loading />
+        </div>
+      ) : feed.length === 0 ? (
         <p className="mx-4 rounded-xl bg-paper p-8 text-center font-sans text-sm text-ink-soft shadow-sm dark:bg-night dark:text-stone-400 sm:mx-5">
           Follow authors or like stories to build your feed.{' '}
           <Link to="/search" className="font-medium text-ink underline dark:text-stone-200">

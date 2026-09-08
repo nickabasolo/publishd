@@ -1,24 +1,44 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { Search as SearchIcon } from 'lucide-react'
 import { TagLink } from '@/components/tag-link'
-import { allTags, stories } from '@/data'
+import { Loading } from '@/components/ui/loading'
+import { useDataClient } from '@/lib/data'
+import { toLegacyStory } from '@/lib/data/adapt'
+import { analytics } from '@/lib/analytics/events'
+
+const SEARCH_RESULTS_LIMIT = 50
 
 export function SearchPage() {
+  const client = useDataClient()
   const [q, setQ] = useState('')
   const query = q.trim().toLowerCase()
+  const lastLogged = useRef<string | null>(null)
 
-  const results = useMemo(() => {
-    if (!query) return []
-    return stories.filter((s) =>
-      [s.title, s.author.name, s.author.handle, s.blurb, ...s.tags]
-        .join(' ')
-        .toLowerCase()
-        .includes(query),
-    )
-  }, [query])
+  const searchQuery = useQuery({
+    queryKey: ['stories', 'search', query],
+    queryFn: () => client.stories.search(query, { limit: SEARCH_RESULTS_LIMIT }),
+    enabled: Boolean(query),
+  })
+  const results = query ? (searchQuery.data?.items ?? []).map(toLegacyStory) : []
+  const isLoading = Boolean(query) && searchQuery.isLoading
 
-  const popular = allTags().slice(0, 12)
+  const tagsQuery = useQuery({
+    queryKey: ['stories', 'allTags'],
+    queryFn: () => client.stories.allTags(),
+  })
+  const popular = (tagsQuery.data ?? []).slice(0, 12)
+
+  // Log once per settled query, not on every keystroke's re-render.
+  useEffect(() => {
+    if (!query || isLoading || lastLogged.current === query) return
+    const id = window.setTimeout(() => {
+      lastLogged.current = query
+      analytics.searchPerformed(query, results.length)
+    }, 400)
+    return () => window.clearTimeout(id)
+  }, [query, results.length, isLoading])
 
   return (
     <div className="mx-auto w-full max-w-[800px] px-4 pb-32 pt-10 md:pb-24">
@@ -34,16 +54,22 @@ export function SearchPage() {
       </div>
 
       {query ? (
-        results.length === 0 ? (
+        isLoading ? (
+          <div className="mt-6">
+            <Loading />
+          </div>
+        ) : results.length === 0 ? (
           <p className="mt-6 font-sans text-sm text-ink-soft dark:text-stone-400">
             Nothing matches &ldquo;{q.trim()}&rdquo;.
           </p>
         ) : (
           <ul className="mt-4 space-y-1">
-            {results.map((s) => (
+            {results.map((s, i) => (
               <li key={s.id}>
                 <Link
                   to={`/s/${s.slug}`}
+                  state={{ source: 'search' }}
+                  onClick={() => analytics.searchResultClicked(i, results.length)}
                   className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-ink/[0.03] dark:hover:bg-white/[0.04]"
                 >
                   <span

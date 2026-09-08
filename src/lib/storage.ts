@@ -37,6 +37,19 @@ function commit<T>(key: string, next: T): void {
 }
 
 /**
+ * Plain (non-hook) accessors for the `publishd:` localStorage store, for use
+ * outside React — e.g. the local DataClient implementation, which is called
+ * from TanStack Query rather than rendered.
+ */
+export function readLocal<T>(key: string, fallback: T): T {
+  return snapshot(key, fallback)
+}
+
+export function writeLocal<T>(key: string, value: T): void {
+  commit(key, value)
+}
+
+/**
  * Persisted, reactive state under the `publishd:` prefix. Updates from any
  * component (or another tab) propagate to every hook instance for the same key.
  */

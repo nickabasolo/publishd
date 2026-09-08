@@ -1,11 +1,16 @@
 import { Link } from 'react-router-dom'
 import { Heart } from 'lucide-react'
-import { stories } from '@/data'
-import { currentlyReadingSlugs } from '@/data/demo-state'
+import { useQuery } from '@tanstack/react-query'
 import { useLikes } from '@/hooks/use-likes'
-import { useActiveRead } from '@/hooks/use-active-read'
+import { useInProgressReads } from '@/hooks/use-reading-progress'
 import { useAuthPrompt } from '@/context/auth-prompt'
+import { useDataClient } from '@/lib/data'
+import { toLegacyStory } from '@/lib/data/adapt'
+import { Loading } from '@/components/ui/loading'
+import { analytics } from '@/lib/analytics/events'
 import type { Story } from '@/lib/types'
+
+const ALL_STORIES_LIMIT = 50
 
 function latestReadableChapter(story: Story) {
   const readable = story.chapters.filter((c) => !c.locked)
@@ -32,14 +37,17 @@ function StoryRow({
   story,
   to,
   trailing,
+  onClick,
 }: {
   story: Story
   to: string
   trailing?: React.ReactNode
+  onClick?: () => void
 }) {
   return (
     <Link
       to={to}
+      onClick={onClick}
       className="flex items-center gap-4 rounded-xl bg-paper px-5 py-4 shadow-sm transition-colors hover:bg-paper/70 dark:bg-night dark:hover:bg-night/70"
     >
       <div className="min-w-0 flex-1">
@@ -67,19 +75,25 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export function LibraryPage() {
+  const client = useDataClient()
   const { liked } = useLikes()
-  const { activeRead } = useActiveRead()
+  const { items: inProgress } = useInProgressReads()
   const { isGuest, promptAuth } = useAuthPrompt()
 
-  const resumeStory =
-    activeRead && !activeRead.completed
-      ? stories.find((s) => s.slug === activeRead.slug)
-      : undefined
+  // Both "currently reading" and "liked" need full story content (title,
+  // chapters, author byline) keyed by slug — one feed fetch through the data
+  // contract covers both, mirroring the old direct `stories.json` import.
+  const storiesQuery = useQuery({
+    queryKey: ['stories', 'feed', 'all', ALL_STORIES_LIMIT],
+    queryFn: () => client.stories.feed({ limit: ALL_STORIES_LIMIT }),
+  })
+  const stories = (storiesQuery.data?.items ?? []).map(toLegacyStory)
+  const isLoading = storiesQuery.isLoading
 
-  const readingSlugs = currentlyReadingSlugs.filter((s) => s !== resumeStory?.slug)
-  const readingStories = readingSlugs
-    .map((slug) => stories.find((s) => s.slug === slug))
-    .filter((s): s is Story => Boolean(s))
+  const readingRows = inProgress
+    .filter((p) => p.story)
+    .map((p) => ({ story: stories.find((s) => s.slug === p.storyId) ?? null, chapterNumber: p.chapterNumber }))
+    .filter((r): r is { story: Story; chapterNumber: number } => Boolean(r.story))
 
   const likedStories = stories.filter((s) => liked.includes(s.slug))
 
@@ -93,58 +107,63 @@ export function LibraryPage() {
           </p>
         </header>
 
-        <Section title="Currently reading">
-          {!resumeStory && readingStories.length === 0 ? (
-            <p className="rounded-xl bg-paper p-8 text-center font-sans text-sm text-ink-soft shadow-sm dark:bg-night dark:text-stone-400">
-              Open a chapter and it&rsquo;ll show up here.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {resumeStory && (
-                <StoryRow
-                  story={resumeStory}
-                  to={`/read/${resumeStory.slug}/${activeRead!.chapterNumber}`}
-                  trailing={
-                    <span className="shrink-0 font-sans text-sm font-medium text-ink dark:text-stone-100">
-                      Continue · Ch {activeRead!.chapterNumber}
-                    </span>
-                  }
-                />
+        {isLoading ? (
+          <Loading />
+        ) : (
+          <>
+            <Section title="Currently reading">
+              {readingRows.length === 0 ? (
+                <p className="rounded-xl bg-paper p-8 text-center font-sans text-sm text-ink-soft shadow-sm dark:bg-night dark:text-stone-400">
+                  Open a chapter and it&rsquo;ll show up here.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {readingRows.map(({ story, chapterNumber }) => (
+                    <StoryRow
+                      key={story.id}
+                      story={story}
+                      to={`/read/${story.slug}/${chapterNumber}`}
+                      onClick={() => analytics.readingResumed(story.slug, 'library')}
+                      trailing={
+                        <span className="shrink-0 font-sans text-sm font-medium text-ink dark:text-stone-100">
+                          Continue · Ch {chapterNumber}
+                        </span>
+                      }
+                    />
+                  ))}
+                </div>
               )}
-              {readingStories.map((s) => (
-                <StoryRow key={s.id} story={s} to={`/read/${s.slug}/${latestReadableChapter(s).number}`} />
-              ))}
-            </div>
-          )}
-        </Section>
+            </Section>
 
-        <Section title="Liked">
-          {isGuest ? (
-            <div className="flex flex-col items-center gap-3 rounded-xl bg-paper p-8 text-center shadow-sm dark:bg-night">
-              <Heart className="h-6 w-6 text-ink-soft" strokeWidth={1.5} />
-              <p className="font-sans text-sm text-ink-soft dark:text-stone-400">
-                Sign in to save stories to your library.
-              </p>
-              <button
-                type="button"
-                onClick={() => promptAuth({ action: 'save stories' })}
-                className="bg-ink px-4 py-2 font-sans text-sm font-medium text-paper hover:bg-ink/90 dark:bg-stone-100 dark:text-stone-900"
-              >
-                Sign in
-              </button>
-            </div>
-          ) : likedStories.length === 0 ? (
-            <p className="rounded-xl bg-paper p-8 text-center font-sans text-sm text-ink-soft shadow-sm dark:bg-night dark:text-stone-400">
-              Tap the heart on any story to save it here.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {likedStories.map((s) => (
-                <StoryRow key={s.id} story={s} to={`/read/${s.slug}/${latestReadableChapter(s).number}`} />
-              ))}
-            </div>
-          )}
-        </Section>
+            <Section title="Liked">
+              {isGuest ? (
+                <div className="flex flex-col items-center gap-3 rounded-xl bg-paper p-8 text-center shadow-sm dark:bg-night">
+                  <Heart className="h-6 w-6 text-ink-soft" strokeWidth={1.5} />
+                  <p className="font-sans text-sm text-ink-soft dark:text-stone-400">
+                    Sign in to save stories to your library.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => promptAuth({ action: 'save stories' })}
+                    className="bg-ink px-4 py-2 font-sans text-sm font-medium text-paper hover:bg-ink/90 dark:bg-stone-100 dark:text-stone-900"
+                  >
+                    Sign in
+                  </button>
+                </div>
+              ) : likedStories.length === 0 ? (
+                <p className="rounded-xl bg-paper p-8 text-center font-sans text-sm text-ink-soft shadow-sm dark:bg-night dark:text-stone-400">
+                  Tap the heart on any story to save it here.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {likedStories.map((s) => (
+                    <StoryRow key={s.id} story={s} to={`/read/${s.slug}/${latestReadableChapter(s).number}`} />
+                  ))}
+                </div>
+              )}
+            </Section>
+          </>
+        )}
       </div>
     </div>
   )

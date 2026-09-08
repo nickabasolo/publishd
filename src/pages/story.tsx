@@ -1,29 +1,60 @@
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { Eye, MessageCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { UserLink } from '@/components/user-link'
 import { TagLink } from '@/components/tag-link'
 import { ChapterList } from '@/components/chapter-list'
 import { LikeButton } from '@/components/like-button'
+import { Loading } from '@/components/ui/loading'
 import { useLikes } from '@/hooks/use-likes'
-import { useActiveRead } from '@/hooks/use-active-read'
-import { getStory } from '@/data'
+import { useReadingProgress } from '@/hooks/use-reading-progress'
+import { useDataClient } from '@/lib/data'
+import { toLegacyStory } from '@/lib/data/adapt'
 import { formatCompact, formatRelativeTime } from '@/lib/format'
+import { analytics } from '@/lib/analytics/events'
+
+type ViewSource = 'feed' | 'search' | 'tag' | 'profile' | 'notification' | 'direct'
 
 export function StoryPage() {
   const { slug = '' } = useParams()
+  const location = useLocation()
+  const client = useDataClient()
   const likes = useLikes()
-  const { activeRead } = useActiveRead()
+  const { progress } = useReadingProgress(slug)
 
-  const story = getStory(slug)
+  const storyQuery = useQuery({
+    queryKey: ['stories', 'bySlug', slug],
+    queryFn: () => client.stories.getBySlug(slug),
+    enabled: Boolean(slug),
+  })
+  const story = storyQuery.data ? toLegacyStory(storyQuery.data) : null
+  const isLoading = storyQuery.isLoading
+
+  useEffect(() => {
+    if (!story) return
+    const source = ((location.state as { source?: ViewSource } | null)?.source ?? 'direct') as ViewSource
+    analytics.storyViewed(story.slug, source)
+    // Only re-fire when the story itself changes, not on every state object identity change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [story?.slug])
+
+  if (isLoading) {
+    return (
+      <div className="min-h-full bg-surface px-4 py-6 pb-32 dark:bg-surface-night md:py-10 md:pb-24">
+        <div className="mx-auto max-w-2xl">
+          <Loading />
+        </div>
+      </div>
+    )
+  }
+
   if (!story) return <Navigate to="/" replace />
 
   const totalWords = story.chapters.reduce((n, c) => n + c.wordCount, 0)
   const firstUnlocked = story.chapters.find((c) => !c.locked) ?? story.chapters[0]
-  const resume =
-    activeRead && activeRead.slug === slug && !activeRead.completed
-      ? activeRead.chapterNumber
-      : null
+  const resume = progress && !progress.completed ? progress.chapterNumber : null
   const ctaChapter = resume ?? firstUnlocked.number
 
   return (

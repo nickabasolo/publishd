@@ -9,7 +9,7 @@ export function StudioPage() {
   const { stories, createStory } = useStudio()
   const { isGuest, promptAuth } = useAuthPrompt()
 
-  const startStory = () => navigate(`/studio/${createStory()}`)
+  const startStory = async () => navigate(`/studio/${await createStory()}`)
 
   if (isGuest) {
     return (

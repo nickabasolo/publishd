@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactElement } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { OAuthProvider } from '@/lib/data/supabase/auth'
 
 interface Props {
   open: boolean
   action?: string
   onClose: () => void
-  onSignIn: () => void
+  /** Called with the provider that was clicked. Ignored (any provider signs in the same fake reader) on the local backend. */
+  onSignIn: (provider: OAuthProvider) => void
 }
 
 function GoogleMark() {
@@ -39,10 +41,10 @@ function DiscordMark() {
   )
 }
 
-const PROVIDERS = [
-  { name: 'Google', Mark: GoogleMark },
-  { name: 'Apple', Mark: AppleMark },
-  { name: 'Discord', Mark: DiscordMark },
+const PROVIDERS: { id: OAuthProvider | 'apple'; name: string; Mark: () => ReactElement; disabled?: boolean }[] = [
+  { id: 'google', name: 'Google', Mark: GoogleMark },
+  { id: 'apple', name: 'Apple', Mark: AppleMark, disabled: true },
+  { id: 'discord', name: 'Discord', Mark: DiscordMark },
 ]
 
 export function AuthSheet({ open, action, onClose, onSignIn }: Props) {
@@ -101,15 +103,25 @@ export function AuthSheet({ open, action, onClose, onSignIn }: Props) {
         </div>
 
         <div className="mt-5 space-y-2">
-          {PROVIDERS.map(({ name, Mark }) => (
+          {PROVIDERS.map(({ id, name, Mark, disabled }) => (
             <button
-              key={name}
+              key={id}
               type="button"
-              onClick={onSignIn}
-              className="flex w-full items-center justify-center gap-2.5 rounded-md border border-ink/20 px-4 py-2.5 font-sans text-sm font-medium hover:bg-ink/5 dark:border-white/20 dark:hover:bg-white/5"
+              disabled={disabled}
+              title={disabled ? 'Coming soon' : undefined}
+              onClick={() => !disabled && onSignIn(id as OAuthProvider)}
+              className={cn(
+                'flex w-full items-center justify-center gap-2.5 rounded-md border border-ink/20 px-4 py-2.5 font-sans text-sm font-medium hover:bg-ink/5 dark:border-white/20 dark:hover:bg-white/5',
+                disabled && 'cursor-not-allowed opacity-50 hover:bg-transparent dark:hover:bg-transparent',
+              )}
             >
               <Mark />
               Continue with {name}
+              {disabled && (
+                <span className="ml-1 rounded-full bg-ink/10 px-1.5 py-0.5 text-[10px] font-medium text-ink-soft dark:bg-white/10 dark:text-stone-400">
+                  Coming soon
+                </span>
+              )}
             </button>
           ))}
         </div>

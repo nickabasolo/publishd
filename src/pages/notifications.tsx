@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { useQueries } from '@tanstack/react-query'
 import {
   Bell,
   BookOpen,
@@ -11,11 +12,10 @@ import {
 import { Avatar } from '@/components/avatar'
 import { useNotifications, type FeedNotification } from '@/hooks/use-notifications'
 import { useAuthPrompt } from '@/context/auth-prompt'
-import { getStory } from '@/data'
-import { getPerson } from '@/data/people'
+import { useDataClient } from '@/lib/data'
 import { formatRelativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import type { NotificationType } from '@/data/notifications-seed'
+import type { NotificationType } from '@/lib/data'
 
 const ICON: Record<NotificationType, typeof Bell> = {
   'new-chapter': BookOpen,
@@ -26,9 +26,10 @@ const ICON: Record<NotificationType, typeof Bell> = {
   'reads-milestone': TrendingUp,
 }
 
-function describe(n: FeedNotification): { text: string; href: string } {
-  const actor = n.actorHandle ? `@${n.actorHandle}` : 'Someone'
-  const title = getStory(n.storySlug)?.title ?? 'a story'
+function describe(n: FeedNotification, storyTitles: Map<string, string>): { text: string; href: string } {
+  const actorHandle = n.actor?.handle ?? n.actorId
+  const actor = actorHandle ? `@${actorHandle}` : 'Someone'
+  const title = (n.storySlug && storyTitles.get(n.storySlug)) ?? 'a story'
   const chapterHref =
     n.storySlug && n.chapterNumber
       ? `/read/${n.storySlug}/${n.chapterNumber}`
@@ -42,7 +43,7 @@ function describe(n: FeedNotification): { text: string; href: string } {
     case 'comment-reply':
       return { text: `${actor} replied to your comment on “${title}”`, href: chapterHref }
     case 'new-follower':
-      return { text: `${actor} started following you`, href: `/u/${n.actorHandle}` }
+      return { text: `${actor} started following you`, href: `/u/${actorHandle}` }
     case 'story-complete':
       return { text: `“${title}” is now complete`, href: `/s/${n.storySlug}` }
     case 'story-liked':
@@ -81,9 +82,26 @@ function GuestGate() {
 }
 
 export function NotificationsPage() {
+  const client = useDataClient()
   const { isGuest } = useAuthPrompt()
   const { items, unreadCount, markRead, markAllRead } = useNotifications()
   const navigate = useNavigate()
+
+  // Notifications carry only `storySlug` — story titles are fetched through
+  // the data contract (not the raw stories.json) and joined here, one query
+  // per distinct story referenced across the list.
+  const storySlugs = [...new Set(items.map((n) => n.storySlug).filter((s): s is string => Boolean(s)))]
+  const storyQueries = useQueries({
+    queries: storySlugs.map((slug) => ({
+      queryKey: ['stories', 'bySlug', slug],
+      queryFn: () => client.stories.getBySlug(slug),
+    })),
+  })
+  const storyTitles = new Map<string, string>()
+  storySlugs.forEach((slug, i) => {
+    const title = storyQueries[i]?.data?.title
+    if (title) storyTitles.set(slug, title)
+  })
 
   if (isGuest) return <GuestGate />
 
@@ -110,9 +128,9 @@ export function NotificationsPage() {
         ) : (
           <ul className="overflow-hidden rounded-xl bg-paper shadow-sm dark:bg-night">
             {items.map((n) => {
-              const { text, href } = describe(n)
+              const { text, href } = describe(n, storyTitles)
               const Icon = ICON[n.type]
-              const person = n.actorHandle ? getPerson(n.actorHandle) : null
+              const person = n.actor
               return (
                 <li key={n.id}>
                   <button
@@ -128,7 +146,7 @@ export function NotificationsPage() {
                   >
                     <span className="relative mt-0.5 shrink-0">
                       {person ? (
-                        <Avatar name={person.name} color={person.avatarColor} size={32} />
+                        <Avatar name={person.displayName} color={person.avatarColor} size={32} />
                       ) : (
                         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-ink/[0.06] dark:bg-white/10">
                           <Icon className="h-4 w-4" strokeWidth={1.75} />

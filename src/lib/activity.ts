@@ -1,4 +1,3 @@
-import { COMMENT_SEED } from '@/data/comments-seed'
 import { stories, getStory } from '@/data'
 import { parseAnchor, type AuthoredComment } from '@/hooks/use-comments'
 
@@ -23,24 +22,6 @@ function hash(s: string): number {
   let h = 0
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0
   return Math.abs(h)
-}
-
-/** Seeded comments/replies authored by `handle` (used for other people's feeds). */
-export function seededCommentsBy(handle: string): AuthoredComment[] {
-  const out: AuthoredComment[] = []
-  for (const [anchor, list] of Object.entries(COMMENT_SEED)) {
-    for (const c of list) {
-      if (c.author.handle === handle) {
-        out.push({ body: c.body, at: c.createdAt, anchor, isReply: false })
-      }
-      for (const r of c.replies) {
-        if (r.author.handle === handle) {
-          out.push({ body: r.body, at: r.createdAt, anchor, isReply: true })
-        }
-      }
-    }
-  }
-  return out
 }
 
 interface BuildArgs {

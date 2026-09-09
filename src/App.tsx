@@ -35,7 +35,7 @@ import './index.css'
 // out of `npm run build` (production) entirely, not merely hidden by a
 // runtime route guard.
 const PlaygroundRoute = import.meta.env.DEV
-  ? lazy(() => import('@/playground/playground-index').then((m) => ({ default: m.PlaygroundIndexPage })))
+  ? lazy(() => import('@/playground/index').then((m) => ({ default: m.PlaygroundIndexPage })))
   : null
 
 const queryClient = new QueryClient({
@@ -84,7 +84,7 @@ function App() {
                     <Route path="/settings" element={<SettingsPage />} />
                     {PlaygroundRoute && (
                       <Route
-                        path="/playground"
+                        path="/playground/*"
                         element={
                           <Suspense fallback={null}>
                             <PlaygroundRoute />

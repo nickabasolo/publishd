@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, PenLine } from 'lucide-react'
 import { StudioStoryCard } from '@/components/studio/story-card'
@@ -6,10 +7,15 @@ import { useAuthPrompt } from '@/context/auth-prompt'
 
 export function StudioPage() {
   const navigate = useNavigate()
-  const { stories, createStory } = useStudio()
+  const { stories, createStoryWithFirstChapter } = useStudio()
   const { isGuest, promptAuth } = useAuthPrompt()
+  const [choosingFormat, setChoosingFormat] = useState(false)
 
-  const startStory = async () => navigate(`/studio/${await createStory()}`)
+  const startStory = async (format: 'prose' | 'chat') => {
+    setChoosingFormat(false)
+    const { slug, chapterId } = await createStoryWithFirstChapter(format)
+    navigate(`/studio/${slug}/${chapterId}`)
+  }
 
   if (isGuest) {
     return (
@@ -44,14 +50,34 @@ export function StudioPage() {
             </p>
           </div>
           {stories.length > 0 && (
-            <button
-              type="button"
-              onClick={startStory}
-              className="inline-flex shrink-0 items-center gap-1.5 bg-ink px-3 py-2 font-sans text-sm font-medium text-paper hover:bg-ink/90 dark:bg-stone-100 dark:text-stone-900"
-            >
-              <Plus className="h-4 w-4" />
-              New story
-            </button>
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setChoosingFormat((v) => !v)}
+                className="inline-flex items-center gap-1.5 bg-ink px-3 py-2 font-sans text-sm font-medium text-paper hover:bg-ink/90 dark:bg-stone-100 dark:text-stone-900"
+              >
+                <Plus className="h-4 w-4" />
+                New story
+              </button>
+              {choosingFormat && (
+                <div className="absolute right-0 top-full z-10 mt-1 flex w-44 flex-col overflow-hidden rounded-lg border border-ink/10 bg-paper shadow-lg dark:border-white/10 dark:bg-night">
+                  <button
+                    type="button"
+                    onClick={() => startStory('prose')}
+                    className="px-3 py-2 text-left font-sans text-sm hover:bg-ink/5 dark:hover:bg-white/5"
+                  >
+                    Write a story
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => startStory('chat')}
+                    className="px-3 py-2 text-left font-sans text-sm hover:bg-ink/5 dark:hover:bg-white/5"
+                  >
+                    Write a chat AU
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </header>
 
@@ -61,13 +87,22 @@ export function StudioPage() {
             <p className="font-sans text-sm text-ink-soft dark:text-stone-400">
               You haven&rsquo;t started a story yet.
             </p>
-            <button
-              type="button"
-              onClick={startStory}
-              className="bg-ink px-4 py-2 font-sans text-sm font-medium text-paper hover:bg-ink/90 dark:bg-stone-100 dark:text-stone-900"
-            >
-              Start writing
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => startStory('prose')}
+                className="bg-ink px-4 py-2 font-sans text-sm font-medium text-paper hover:bg-ink/90 dark:bg-stone-100 dark:text-stone-900"
+              >
+                Write a story
+              </button>
+              <button
+                type="button"
+                onClick={() => startStory('chat')}
+                className="border border-ink/25 px-4 py-2 font-sans text-sm font-medium hover:bg-ink/5 dark:border-white/20 dark:hover:bg-white/5"
+              >
+                Write a chat AU
+              </button>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">

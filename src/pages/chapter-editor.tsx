@@ -1,10 +1,17 @@
 import { useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Settings } from 'lucide-react'
 import { StateBadge } from '@/components/studio/state-badge'
 import { ScheduleSheet } from '@/components/studio/schedule-sheet'
+import { ChatComposer } from '@/components/studio/chat-composer'
 import { useStudio } from '@/hooks/use-studio'
 import { formatRelativeFuture } from '@/lib/format'
+import type { ChatParticipants } from '@/lib/types'
+
+const DEFAULT_PARTICIPANTS: ChatParticipants = {
+  a: { name: 'Them', color: '#94a3b8' },
+  b: { name: 'You', color: '#6366f1' },
+}
 
 export function ChapterEditorPage() {
   const { slug = '', chapterId = '' } = useParams()
@@ -27,8 +34,16 @@ export function ChapterEditorPage() {
           <span className="hidden sm:inline">{story.title}</span>
         </Link>
         <div className="flex items-center gap-3 font-sans text-xs text-ink-soft dark:text-stone-500">
-          <span>{chapter.wordCount.toLocaleString()} words · saved</span>
+          <span className="hidden sm:inline">{chapter.wordCount.toLocaleString()} words · saved</span>
           <StateBadge state={chapter.state} />
+          <Link
+            to={`/studio/${slug}`}
+            title="Story settings"
+            className="inline-flex items-center gap-1.5 border border-ink/25 px-2 py-1 hover:bg-ink/5 dark:border-white/20 dark:hover:bg-white/5"
+          >
+            <Settings className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Settings</span>
+          </Link>
         </div>
       </div>
 
@@ -41,12 +56,20 @@ export function ChapterEditorPage() {
             placeholder="Chapter title"
             className="w-full bg-transparent font-serif text-2xl leading-tight text-ink outline-none placeholder:text-ink-soft/50 dark:text-stone-100"
           />
-          <textarea
-            value={chapter.body}
-            onChange={(e) => studio.updateChapter(slug, chapterId, { body: e.target.value })}
-            placeholder="Start writing. Leave a blank line between paragraphs."
-            className="mt-6 min-h-[50vh] w-full resize-none bg-transparent font-serif text-[15px] leading-[1.75] text-ink outline-none placeholder:text-ink-soft/50 dark:text-stone-200"
-          />
+          {story.format === 'chat' ? (
+            <ChatComposer
+              messages={chapter.messages ?? []}
+              participants={story.chatParticipants ?? DEFAULT_PARTICIPANTS}
+              onChange={(messages) => studio.updateChapter(slug, chapterId, { messages, title: chapter.title })}
+            />
+          ) : (
+            <textarea
+              value={chapter.body}
+              onChange={(e) => studio.updateChapter(slug, chapterId, { body: e.target.value })}
+              placeholder="Start writing. Leave a blank line between paragraphs."
+              className="mt-6 min-h-[50vh] w-full resize-none bg-transparent font-serif text-[15px] leading-[1.75] text-ink outline-none placeholder:text-ink-soft/50 dark:text-stone-200"
+            />
+          )}
         </div>
       </div>
 
@@ -60,6 +83,26 @@ export function ChapterEditorPage() {
           >
             Unpublish
           </button>
+        ) : chapter.number === 1 ? (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                studio.setChapterState(slug, chapterId, 'published')
+                studio.updateStory(slug, { status: 'complete' })
+              }}
+              className="border border-ink/25 px-4 py-2 font-sans text-sm font-medium hover:bg-ink/5 dark:border-white/20 dark:hover:bg-white/5"
+            >
+              Publish as complete
+            </button>
+            <button
+              type="button"
+              onClick={() => studio.setChapterState(slug, chapterId, 'published')}
+              className="bg-ink px-4 py-2 font-sans text-sm font-medium text-paper hover:bg-ink/90 dark:bg-stone-100 dark:text-stone-900"
+            >
+              Publish & keep going
+            </button>
+          </>
         ) : (
           <button
             type="button"

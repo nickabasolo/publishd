@@ -5,6 +5,13 @@
 // unreported until the visitor opts in).
 const STORAGE_KEY = 'publishd:analytics-consent'
 
+// Pre-launch only: the site is currently only reachable by the founders
+// testing it, so the consent banner is skipped and PostHog is auto-granted
+// instead of asking. FLIP THIS TO false before any real visitor can reach
+// the site — the EU/UK opt-in requirement this banner exists for applies
+// the moment there's a real audience, not just at public launch.
+export const SKIP_CONSENT_BANNER = true
+
 export type ConsentState = 'granted' | 'declined' | null
 
 export function getConsent(): ConsentState {

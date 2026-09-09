@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { getConsent, setConsent } from '@/lib/analytics/consent'
+import { useEffect, useState } from 'react'
+import { getConsent, setConsent, SKIP_CONSENT_BANNER } from '@/lib/analytics/consent'
 import { isAnalyticsEnabled, optInCapturing, optOutCapturing } from '@/lib/analytics/posthog'
 
 /**
@@ -11,7 +11,16 @@ import { isAnalyticsEnabled, optInCapturing, optOutCapturing } from '@/lib/analy
  * to consent to.
  */
 export function ConsentBanner() {
-  const [visible, setVisible] = useState(() => isAnalyticsEnabled() && getConsent() === null)
+  const [visible, setVisible] = useState(
+    () => isAnalyticsEnabled() && !SKIP_CONSENT_BANNER && getConsent() === null,
+  )
+
+  useEffect(() => {
+    if (isAnalyticsEnabled() && SKIP_CONSENT_BANNER && getConsent() === null) {
+      setConsent('granted')
+      optInCapturing()
+    }
+  }, [])
 
   if (!visible) return null
 

@@ -29,6 +29,7 @@ export interface ProfileRow {
 export interface StoryRow {
   id: string
   slug: string
+  public_id: string | number
   author_id: string
   title: string
   blurb: string
@@ -80,7 +81,7 @@ export interface NotificationRow {
   story_id: string | null
   chapter_id: string | null
   actor: CommentAuthorRow | CommentAuthorRow[] | null
-  story: { slug: string } | { slug: string }[] | null
+  story: { slug: string; public_id: string | number } | { slug: string; public_id: string | number }[] | null
   chapter: { number: number | null } | { number: number | null }[] | null
 }
 
@@ -117,6 +118,7 @@ export function toStory(
   return {
     id: row.id,
     slug: row.slug,
+    publicId: String(row.public_id),
     title: row.title,
     authorId: row.author_id,
     author: opts.author,
@@ -194,6 +196,7 @@ export function toNotification(row: NotificationRow): Notification {
     actorId: row.actor_id ?? undefined,
     actor: toProfileSummary(one(row.actor)),
     storySlug: story?.slug,
+    storyPublicId: story ? String(story.public_id) : undefined,
     chapterNumber: chapter?.number ?? undefined,
   }
 }

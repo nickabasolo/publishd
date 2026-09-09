@@ -23,6 +23,7 @@ import {
   defaultUser,
   fakeStatsFor,
   getStory,
+  getStoryByPublicId,
   resolveProfile,
   stories as seedStories,
   summaryForHandle,
@@ -231,6 +232,9 @@ export const localDataClient: DataClient = {
     },
     async getBySlug(slug) {
       return getStory(slug) ?? null
+    },
+    async getById(publicId) {
+      return getStoryByPublicId(publicId) ?? null
     },
     async byTag(tag, params) {
       const t = tag.toLowerCase()
@@ -541,6 +545,7 @@ export const localDataClient: DataClient = {
           actorId: n.actorHandle,
           actor: summaryForHandle(n.actorHandle),
           storySlug: n.storySlug,
+          storyPublicId: n.storySlug ? getStory(n.storySlug)?.publicId : undefined,
           chapterNumber: n.chapterNumber,
           count: n.count,
         }))

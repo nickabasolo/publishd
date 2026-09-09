@@ -43,8 +43,8 @@ function summary(it: ActivityItem): ReactNode {
 }
 
 function hrefFor(it: ActivityItem): string {
-  if (it.kind === 'publish') return `/s/${it.storySlug}`
-  return it.chapter ? `/read/${it.storySlug}/${it.chapter}` : `/read/${it.storySlug}`
+  if (it.kind === 'publish') return `/s/${it.storyPublicId}`
+  return it.chapter ? `/read/${it.storyPublicId}/${it.chapter}` : `/read/${it.storyPublicId}`
 }
 
 export function ActivityFeed({ items }: { items: ActivityItem[] }) {

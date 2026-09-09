@@ -47,6 +47,16 @@ export function StoryAnalyticsPage() {
     enabled: Boolean(story),
   })
 
+  // Studio bookkeeping stays slug-keyed; the reader-facing "top passages"
+  // links below need the public id, which the studio-story shape doesn't
+  // carry (see `StudioStory.publicId`'s doc comment) — fetch it separately.
+  const publicIdQuery = useQuery({
+    queryKey: ['stories', 'bySlug', 'publicId', slug],
+    queryFn: () => client.stories.getBySlug(slug),
+    enabled: Boolean(story),
+  })
+  const publicId = publicIdQuery.data?.publicId ?? slug
+
   if (!story) return <Navigate to="/studio" replace />
 
   if (analyticsQuery.isLoading) {
@@ -112,7 +122,7 @@ export function StoryAnalyticsPage() {
             {a.topPassages.map((p, i) => (
               <li key={i}>
                 <Link
-                  to={`/read/${slug}/${p.chapter}`}
+                  to={`/read/${publicId}/${p.chapter}`}
                   className="flex items-center justify-between gap-3 rounded-md px-2 py-2 font-sans text-sm transition-colors hover:bg-ink/[0.03] dark:hover:bg-white/[0.04]"
                 >
                   <span className="text-ink dark:text-stone-200">

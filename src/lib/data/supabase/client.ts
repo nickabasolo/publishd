@@ -93,8 +93,21 @@ function anonSessionId(): string {
 async function getStoryRowBySlug(slug: string): Promise<StoryRow | null> {
   const { data, error } = await supabase
     .from('stories')
-    .select('id, slug, author_id, title, blurb, synopsis, cover_color, status, is_published, updated_at')
+    .select(STORY_COLUMNS)
     .eq('slug', slug)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+async function getStoryRowByPublicId(publicId: string): Promise<StoryRow | null> {
+  // public_id is a bigint column; a non-numeric param can never match, and
+  // passing it through as-is would make PostgREST error on the cast.
+  if (!/^\d+$/.test(publicId)) return null
+  const { data, error } = await supabase
+    .from('stories')
+    .select(STORY_COLUMNS)
+    .eq('public_id', publicId)
     .maybeSingle()
   if (error) throw error
   return data
@@ -243,13 +256,14 @@ async function storiesToPage(rows: StoryRow[], nextCursor: string | null): Promi
   return { items, nextCursor }
 }
 
-const STORY_COLUMNS = 'id, slug, author_id, title, blurb, synopsis, cover_color, status, is_published, updated_at'
+const STORY_COLUMNS = 'id, slug, public_id, author_id, title, blurb, synopsis, cover_color, status, is_published, updated_at'
 
 // ---- studio helpers -------------------------------------------------------
 
 interface StudioStoryRow {
   id: string
   slug: string
+  public_id: string | number
   title: string
   blurb: string
   synopsis: string
@@ -260,7 +274,7 @@ interface StudioStoryRow {
 async function getOwnStudioStoryRow(slug: string, userId: string): Promise<StudioStoryRow | null> {
   const { data, error } = await supabase
     .from('stories')
-    .select('id, slug, title, blurb, synopsis, cover_color, status')
+    .select('id, slug, public_id, title, blurb, synopsis, cover_color, status')
     .eq('slug', slug)
     .eq('author_id', userId)
     .maybeSingle()
@@ -337,6 +351,7 @@ async function buildStudioStory(row: StudioStoryRow): Promise<StudioStory> {
   const [tags, chapters] = await Promise.all([fetchStudioStoryTags(row.id), fetchStudioChapters(row.id)])
   return {
     slug: row.slug,
+    publicId: String(row.public_id),
     title: row.title,
     blurb: row.blurb,
     synopsis: row.synopsis,
@@ -378,6 +393,13 @@ export const supabaseDataClient: DataClient = {
 
     async getBySlug(slug) {
       const row = await getStoryRowBySlug(slug)
+      if (!row || (!row.is_published && row.author_id !== (await currentUserId()))) return null
+      const { rows: chapterRows, paragraphs } = await fetchPublishedChapters(row.id)
+      return buildStory(row, chapterRows, paragraphs)
+    },
+
+    async getById(publicId) {
+      const row = await getStoryRowByPublicId(publicId)
       if (!row || (!row.is_published && row.author_id !== (await currentUserId()))) return null
       const { rows: chapterRows, paragraphs } = await fetchPublishedChapters(row.id)
       return buildStory(row, chapterRows, paragraphs)
@@ -1126,7 +1148,7 @@ export const supabaseDataClient: DataClient = {
         supabase
           .from('notifications')
           .select(
-            'id, type, created_at, read_at, actor_id, story_id, chapter_id, actor:profiles(id, username, display_name, avatar_color), story:stories(slug), chapter:chapters(number)',
+            'id, type, created_at, read_at, actor_id, story_id, chapter_id, actor:profiles(id, username, display_name, avatar_color), story:stories(slug, public_id), chapter:chapters(number)',
           )
           .eq('profile_id', userId)
           .order('created_at', { ascending: false }),
@@ -1175,7 +1197,7 @@ export const supabaseDataClient: DataClient = {
       const userId = await requireUserId()
       const { data, error } = await supabase
         .from('stories')
-        .select('id, slug, title, blurb, synopsis, cover_color, status')
+        .select('id, slug, public_id, title, blurb, synopsis, cover_color, status')
         .eq('author_id', userId)
         .order('created_at', { ascending: false })
       if (error) throw error
@@ -1187,7 +1209,7 @@ export const supabaseDataClient: DataClient = {
       if (!userId) return null
       const { data, error } = await supabase
         .from('stories')
-        .select('id, slug, title, blurb, synopsis, cover_color, status')
+        .select('id, slug, public_id, title, blurb, synopsis, cover_color, status')
         .eq('slug', slug)
         .eq('author_id', userId)
         .maybeSingle()

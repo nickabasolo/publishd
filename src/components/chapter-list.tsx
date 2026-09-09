@@ -66,7 +66,7 @@ export function ChapterList({ story, currentChapterNumber, onSelect }: ChapterLi
                 {inner}
               </button>
             ) : (
-              <Link to={`/read/${story.slug}/${ch.number}`} className={cls}>
+              <Link to={`/read/${story.publicId}/${ch.number}`} className={cls}>
                 {inner}
               </Link>
             )}

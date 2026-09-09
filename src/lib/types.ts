@@ -49,6 +49,8 @@ export interface StoryStats {
 export interface Story {
   id: string
   slug: string
+  /** Short, random, numeric public identifier used for reader-facing URLs. Not sequential. */
+  publicId: string
   title: string
   author: Author
   tags: string[]

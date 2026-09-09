@@ -19,6 +19,7 @@ export function toLegacyStory(s: ContractStory): LegacyStory {
   return {
     id: s.id,
     slug: s.slug,
+    publicId: s.publicId,
     title: s.title,
     author,
     tags: s.tags,

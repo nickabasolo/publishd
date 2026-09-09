@@ -67,7 +67,7 @@ export function SearchPage() {
             {results.map((s, i) => (
               <li key={s.id}>
                 <Link
-                  to={`/s/${s.slug}`}
+                  to={`/s/${s.publicId}`}
                   state={{ source: 'search' }}
                   onClick={() => analytics.searchResultClicked(i, results.length)}
                   className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-ink/[0.03] dark:hover:bg-white/[0.04]"

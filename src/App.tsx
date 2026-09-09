@@ -59,8 +59,8 @@ function App() {
                     <Route path="/library" element={<LibraryPage />} />
                     <Route path="/likes" element={<Navigate to="/library" replace />} />
                     <Route path="/notifications" element={<NotificationsPage />} />
-                    <Route path="/read/:slug/:chapterNumber?" element={<ReadPage />} />
-                    <Route path="/s/:slug" element={<StoryPage />} />
+                    <Route path="/read/:publicId/:chapterNumber?" element={<ReadPage />} />
+                    <Route path="/s/:publicId" element={<StoryPage />} />
                     <Route path="/t/:tag" element={<TagPage />} />
                     <Route path="/search" element={<SearchPage />} />
                     <Route path="/u/:handle" element={<ProfilePage />} />

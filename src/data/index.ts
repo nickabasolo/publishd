@@ -1,7 +1,11 @@
 import rawStories from './stories.json'
 import type { Story } from '@/lib/types'
+import { publicIdForSlug } from '@/lib/public-id'
 
-export const stories = rawStories as Story[]
+export const stories = (rawStories as Story[]).map((s) => ({
+  ...s,
+  publicId: publicIdForSlug(s.slug),
+}))
 
 export function getStory(slug: string | undefined): Story | undefined {
   if (!slug) return undefined

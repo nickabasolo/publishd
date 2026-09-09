@@ -122,7 +122,7 @@ export function LibraryPage() {
                     <StoryRow
                       key={story.id}
                       story={story}
-                      to={`/read/${story.slug}/${chapterNumber}`}
+                      to={`/read/${story.publicId}/${chapterNumber}`}
                       onClick={() => analytics.readingResumed(story.slug, 'library')}
                       trailing={
                         <span className="shrink-0 font-sans text-sm font-medium text-ink dark:text-stone-100">
@@ -157,7 +157,7 @@ export function LibraryPage() {
               ) : (
                 <div className="space-y-3">
                   {likedStories.map((s) => (
-                    <StoryRow key={s.id} story={s} to={`/read/${s.slug}/${latestReadableChapter(s).number}`} />
+                    <StoryRow key={s.id} story={s} to={`/read/${s.publicId}/${latestReadableChapter(s).number}`} />
                   ))}
                 </div>
               )}

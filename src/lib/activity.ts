@@ -1,5 +1,6 @@
 import { stories, getStory } from '@/data'
 import { parseAnchor, type AuthoredComment } from '@/hooks/use-comments'
+import { publicIdForSlug } from '@/lib/public-id'
 
 // Pinned "now" — matches lib/format.ts so relative times stay stable.
 const NOW = new Date('2026-09-06T09:00:00Z').getTime()
@@ -12,6 +13,7 @@ export interface ActivityItem {
   kind: ActivityKind
   at: number
   storySlug: string
+  storyPublicId: string
   storyTitle: string
   chapter?: number
   paragraph?: number
@@ -44,6 +46,7 @@ export function buildActivity(a: BuildArgs): ActivityItem[] {
       kind: 'comment',
       at: c.at,
       storySlug: slug,
+      storyPublicId: publicIdForSlug(slug),
       storyTitle: title(slug),
       chapter,
       paragraph,
@@ -57,6 +60,7 @@ export function buildActivity(a: BuildArgs): ActivityItem[] {
       kind: 'like-story',
       at: NOW - ((hash(a.handle + slug) % 240) + 1) * H,
       storySlug: slug,
+      storyPublicId: publicIdForSlug(slug),
       storyTitle: title(slug),
     })
   }
@@ -68,6 +72,7 @@ export function buildActivity(a: BuildArgs): ActivityItem[] {
       kind: 'like-passage',
       at: NOW - ((hash(a.handle + anchor) % 300) + 1) * H,
       storySlug: slug,
+      storyPublicId: publicIdForSlug(slug),
       storyTitle: title(slug),
       chapter,
       paragraph,
@@ -81,6 +86,7 @@ export function buildActivity(a: BuildArgs): ActivityItem[] {
       kind: 'publish',
       at: s ? new Date(s.updatedAt).getTime() : NOW,
       storySlug: slug,
+      storyPublicId: publicIdForSlug(slug),
       storyTitle: title(slug),
     })
   }
@@ -95,6 +101,7 @@ export function buildActivity(a: BuildArgs): ActivityItem[] {
         kind: 'like-story',
         at: NOW - ((hash(a.handle + s.slug) % 500) + 5) * H,
         storySlug: s.slug,
+        storyPublicId: s.publicId,
         storyTitle: s.title,
       })
     }

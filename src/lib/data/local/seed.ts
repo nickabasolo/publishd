@@ -9,6 +9,7 @@ import { COMMENT_PERSONAS } from '@/data/comments-seed'
 import { ACCOUNTS, type AccountId as LegacyAccountId } from '@/data/accounts'
 import { defaultUser, defaultFakeStats } from '@/data/default-user'
 import type { Story as LegacyStory } from '@/lib/types'
+import { publicIdForSlug } from '@/lib/public-id'
 import type { Profile, ProfileSummary, ReadingStats, Story } from '../types'
 
 const legacyStories = rawStories as LegacyStory[]
@@ -79,6 +80,7 @@ for (const p of Object.values(COMMENT_PERSONAS)) {
 export const stories: Story[] = legacyStories.map((s) => ({
   id: s.id,
   slug: s.slug,
+  publicId: publicIdForSlug(s.slug),
   title: s.title,
   authorId: s.author.handle,
   author: {
@@ -100,6 +102,10 @@ export const stories: Story[] = legacyStories.map((s) => ({
 
 export function getStory(slug: string): Story | undefined {
   return stories.find((s) => s.slug === slug)
+}
+
+export function getStoryByPublicId(publicId: string): Story | undefined {
+  return stories.find((s) => s.publicId === publicId)
 }
 
 /** Known-identity lookup only — see file header. Returns `undefined` for anyone else. */

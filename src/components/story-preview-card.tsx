@@ -24,7 +24,7 @@ export function StoryPreviewCard({ story }: { story: Story }) {
   const moreCount = story.tags.length - shownTags.length
   const totalWords = story.chapters.reduce((n, c) => n + c.wordCount, 0)
 
-  const open = () => navigate(`/read/${story.slug}/${chapter.number}`)
+  const open = () => navigate(`/read/${story.publicId}/${chapter.number}`)
 
   return (
     <article
@@ -59,7 +59,7 @@ export function StoryPreviewCard({ story }: { story: Story }) {
           Chapter {chapter.number} of {totalLabel} in
         </span>
         <Link
-          to={`/s/${story.slug}`}
+          to={`/s/${story.publicId}`}
           state={{ source: 'feed' }}
           onClick={(e) => e.stopPropagation()}
           className="font-serif hover:underline"

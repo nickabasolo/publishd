@@ -50,7 +50,7 @@ export function ChapterDrawer({ story, currentChapterNumber, open, onClose }: Ch
         <div className="flex items-start justify-between gap-3 border-b border-ink/10 p-4 dark:border-white/10">
           <div className="min-w-0">
             <Link
-              to={`/s/${story.slug}`}
+              to={`/s/${story.publicId}`}
               onClick={onClose}
               className="block truncate font-serif text-lg leading-tight hover:underline"
             >
@@ -93,7 +93,7 @@ export function ChapterDrawer({ story, currentChapterNumber, open, onClose }: Ch
                 story={story}
                 currentChapterNumber={currentChapterNumber}
                 onSelect={(n) => {
-                  navigate(`/read/${story.slug}/${n}`)
+                  navigate(`/read/${story.publicId}/${n}`)
                   onClose()
                 }}
               />

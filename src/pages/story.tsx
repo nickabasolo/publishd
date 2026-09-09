@@ -18,17 +18,17 @@ import { analytics } from '@/lib/analytics/events'
 type ViewSource = 'feed' | 'search' | 'tag' | 'profile' | 'notification' | 'direct'
 
 export function StoryPage() {
-  const { slug = '' } = useParams()
+  const { publicId = '' } = useParams()
   const location = useLocation()
   const client = useDataClient()
   const likes = useLikes()
-  const { progress } = useReadingProgress(slug)
 
   const storyQuery = useQuery({
-    queryKey: ['stories', 'bySlug', slug],
-    queryFn: () => client.stories.getBySlug(slug),
-    enabled: Boolean(slug),
+    queryKey: ['stories', 'byId', publicId],
+    queryFn: () => client.stories.getById(publicId),
+    enabled: Boolean(publicId),
   })
+  const { progress } = useReadingProgress(storyQuery.data?.slug ?? '')
   const story = storyQuery.data ? toLegacyStory(storyQuery.data) : null
   const isLoading = storyQuery.isLoading
 
@@ -97,7 +97,7 @@ export function StoryPage() {
 
           <div className="mt-4 flex flex-wrap items-center gap-4">
             <Link
-              to={`/read/${story.slug}/${ctaChapter}`}
+              to={`/read/${story.publicId}/${ctaChapter}`}
               className="bg-ink px-5 py-2.5 font-sans text-sm font-medium text-paper hover:bg-ink/90 dark:bg-stone-100 dark:text-stone-900"
             >
               {resume ? `Continue · Chapter ${resume}` : 'Start reading'}

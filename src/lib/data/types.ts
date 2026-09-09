@@ -66,6 +66,8 @@ export interface StoryStats {
 export interface Story {
   id: string
   slug: string
+  /** Short, random, numeric public identifier used for reader-facing URLs (`/s/:publicId`, `/read/:publicId/...`). Not sequential. */
+  publicId: string
   title: string
   authorId: string
   author?: ProfileSummary
@@ -164,6 +166,7 @@ export interface Notification {
   actorId?: string
   actor?: ProfileSummary
   storySlug?: string
+  storyPublicId?: string
   chapterNumber?: number
   count?: number
 }
@@ -185,6 +188,8 @@ export interface StudioChapter {
 
 export interface StudioStory {
   slug: string
+  /** Reader-facing public id, when known (real backend only — see stories.getById). Not relied on for internal studio bookkeeping. */
+  publicId?: string
   title: string
   blurb: string
   synopsis: string

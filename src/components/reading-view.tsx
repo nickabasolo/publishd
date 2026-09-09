@@ -118,7 +118,7 @@ export function ReadingView({ story, chapter, onOpenChapters }: ReadingViewProps
             <span className="font-sans tracking-[-0.15px] opacity-80">
               Chapter {chapter.number} of {totalLabel} in
             </span>
-            <Link to={`/s/${story.slug}`} className="font-serif hover:underline">
+            <Link to={`/s/${story.publicId}`} className="font-serif hover:underline">
               {story.title}
             </Link>
           </div>
@@ -226,7 +226,7 @@ export function ReadingView({ story, chapter, onOpenChapters }: ReadingViewProps
               type="button"
               className="flex items-center gap-1.5 disabled:opacity-30"
               disabled={!prev}
-              onClick={() => prev && navigate(`/read/${story.slug}/${prev.number}`)}
+              onClick={() => prev && navigate(`/read/${story.publicId}/${prev.number}`)}
             >
               <ChevronLeft className="h-4 w-4" />
               Previous
@@ -235,7 +235,7 @@ export function ReadingView({ story, chapter, onOpenChapters }: ReadingViewProps
               type="button"
               className="flex items-center gap-1.5 disabled:opacity-30"
               disabled={!next}
-              onClick={() => next && navigate(`/read/${story.slug}/${next.number}`)}
+              onClick={() => next && navigate(`/read/${story.publicId}/${next.number}`)}
             >
               Next
               <ChevronRight className="h-4 w-4" />

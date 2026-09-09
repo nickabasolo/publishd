@@ -31,10 +31,10 @@ function describe(n: FeedNotification, storyTitles: Map<string, string>): { text
   const actor = actorHandle ? `@${actorHandle}` : 'Someone'
   const title = (n.storySlug && storyTitles.get(n.storySlug)) ?? 'a story'
   const chapterHref =
-    n.storySlug && n.chapterNumber
-      ? `/read/${n.storySlug}/${n.chapterNumber}`
-      : n.storySlug
-        ? `/s/${n.storySlug}`
+    n.storyPublicId && n.chapterNumber
+      ? `/read/${n.storyPublicId}/${n.chapterNumber}`
+      : n.storyPublicId
+        ? `/s/${n.storyPublicId}`
         : '/'
 
   switch (n.type) {
@@ -45,9 +45,9 @@ function describe(n: FeedNotification, storyTitles: Map<string, string>): { text
     case 'new-follower':
       return { text: `${actor} started following you`, href: `/u/${actorHandle}` }
     case 'story-complete':
-      return { text: `“${title}” is now complete`, href: `/s/${n.storySlug}` }
+      return { text: `“${title}” is now complete`, href: `/s/${n.storyPublicId}` }
     case 'story-liked':
-      return { text: `${actor} liked “${title}”`, href: `/s/${n.storySlug}` }
+      return { text: `${actor} liked “${title}”`, href: `/s/${n.storyPublicId}` }
     case 'reads-milestone':
       return {
         text: `“${title}” passed ${(n.count ?? 0).toLocaleString()} reads`,

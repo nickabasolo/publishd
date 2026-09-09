@@ -9,14 +9,14 @@ import { toLegacyStory } from '@/lib/data/adapt'
 import { useReadingProgress } from '@/hooks/use-reading-progress'
 
 export function ReadPage() {
-  const { slug, chapterNumber } = useParams()
+  const { publicId, chapterNumber } = useParams()
   const client = useDataClient()
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   const storyQuery = useQuery({
-    queryKey: ['stories', 'bySlug', slug],
-    queryFn: () => client.stories.getBySlug(slug as string),
-    enabled: Boolean(slug),
+    queryKey: ['stories', 'byId', publicId],
+    queryFn: () => client.stories.getById(publicId as string),
+    enabled: Boolean(publicId),
   })
   const story = useMemo(
     () => (storyQuery.data ? toLegacyStory(storyQuery.data) : null),
@@ -25,9 +25,9 @@ export function ReadPage() {
 
   const requested = chapterNumber ? Number(chapterNumber) : 1
   const chapterQuery = useQuery({
-    queryKey: ['chapters', 'get', slug, requested],
-    queryFn: () => client.chapters.get(slug as string, requested),
-    enabled: Boolean(slug),
+    queryKey: ['chapters', 'get', story?.slug, requested],
+    queryFn: () => client.chapters.get(story?.slug as string, requested),
+    enabled: Boolean(story?.slug),
   })
   // Mirrors the old `story.chapters.find(...) ?? story.chapters[0]` fallback:
   // if the requested chapter number doesn't exist, fall back to the story's
@@ -58,7 +58,7 @@ export function ReadPage() {
   if (!story || !chapter) return <Navigate to="/" replace />
 
   // Locked chapters aren't readable in this prototype — bounce to chapter 1.
-  if (chapter.locked) return <Navigate to={`/read/${story.slug}/1`} replace />
+  if (chapter.locked) return <Navigate to={`/read/${story.publicId}/1`} replace />
 
   return (
     <>

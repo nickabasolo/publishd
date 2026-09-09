@@ -29,6 +29,8 @@ export interface DataClient {
     /** Discover / following feed, most-recently-updated first. */
     feed(params: PageParams & { following?: string[] }): Promise<Page<Story>>
     getBySlug(slug: string): Promise<Story | null>
+    /** Looked up by the short random `publicId` used in reader-facing URLs (`/s/:publicId`, `/read/:publicId/...`). */
+    getById(publicId: string): Promise<Story | null>
     byTag(tag: string, params?: PageParams): Promise<Page<Story>>
     search(query: string, params?: PageParams): Promise<Page<Story>>
     allTags(): Promise<{ tag: string; count: number }[]>

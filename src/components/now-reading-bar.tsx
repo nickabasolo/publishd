@@ -35,7 +35,7 @@ export function NowReadingBar() {
   if (!visible || !top || !story) return null
 
   const chapter = story.chapters.find((c) => c.number === top.chapterNumber)
-  const target = `/read/${story.slug}/${top.chapterNumber}`
+  const target = `/read/${story.publicId}/${top.chapterNumber}`
 
   return (
     <div

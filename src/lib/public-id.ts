@@ -1,9 +1,8 @@
 // Deterministic, dev-only public-id derivation for the local/demo data
 // layer, so links built from different in-memory copies of the same seed
 // story (the contract-layer local adapter in `src/lib/data/local/seed.ts`
-// and the older legacy `src/data` module still used by `src/lib/activity.ts`
-// and `src/pages/profile.tsx`) always agree on the same numeric id for a
-// given slug — without editing the checked-in seed JSON by hand.
+// and the older legacy `src/data` module) always agree on the same numeric
+// id for a given slug — without editing the checked-in seed JSON by hand.
 //
 // This is NOT how real public ids are generated. In production (Supabase),
 // `stories.public_id` is a genuinely random 9-digit integer assigned at

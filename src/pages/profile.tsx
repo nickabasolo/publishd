@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { Settings as SettingsIcon } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { Avatar } from '@/components/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -8,12 +8,11 @@ import { StatTile } from '@/components/stat-tile'
 import { ActivityFeed } from '@/components/activity-feed'
 import { useUser, useFakeStats } from '@/hooks/use-user'
 import { useFollows } from '@/hooks/use-follows'
-import { useMyComments } from '@/hooks/use-comments'
+import { useMyComments, parseAnchor } from '@/hooks/use-comments'
 import { useLikes } from '@/hooks/use-likes'
 import { useMyParagraphLikes } from '@/hooks/use-paragraph-likes'
 import { useDataClient } from '@/lib/data'
-import { stories } from '@/data'
-import { buildActivity } from '@/lib/activity'
+import { buildActivity, type StoryLookup } from '@/lib/activity'
 import { useAuthPrompt } from '@/context/auth-prompt'
 
 export function ProfilePage() {
@@ -42,9 +41,7 @@ export function ProfilePage() {
 
   const isGuestSelf = isSelf && isGuest
 
-  const selfStorySlugs = stories
-    .filter((s) => s.author.handle === user.username)
-    .map((s) => s.slug)
+  const selfStorySlugs = user.author?.publishedStoryIds ?? []
 
   const person = isSelf
     ? {
@@ -68,6 +65,37 @@ export function ProfilePage() {
     ? myStats
     : (otherStats.data ?? { booksRead: 0, chaptersRead: 0, minutesRead: 0, dayStreak: 0 })
 
+  // Every story slug referenced by the activity feed (comments, likes,
+  // published stories) — fetched through the data contract, not the static
+  // bundled demo data, so a real backend's content shows up here too.
+  const activitySlugs = [
+    ...new Set([
+      ...myComments.map((c) => parseAnchor(c.anchor).slug),
+      ...(isSelf ? likes.liked : []),
+      ...(isSelf ? myParagraphLikes.map((a) => parseAnchor(a).slug) : []),
+      ...person.storySlugs,
+    ]),
+  ]
+  const activityStoryQueries = useQueries({
+    queries: activitySlugs.map((slug) => ({
+      queryKey: ['stories', 'bySlug', slug],
+      queryFn: () => client.stories.getBySlug(slug),
+    })),
+  })
+  const activityStories: StoryLookup = new Map()
+  activitySlugs.forEach((slug, i) => {
+    const s = activityStoryQueries[i]?.data
+    if (s) activityStories.set(slug, s)
+  })
+
+  // Small pool of real stories to draw from so another person's empty feed
+  // still shows something, instead of always the same static demo data.
+  const fallbackFeed = useQuery({
+    queryKey: ['stories', 'feed', 'activityFallback'],
+    queryFn: () => client.stories.feed({ limit: 20 }),
+    enabled: !isSelf,
+  })
+
   const activity = isSelf
     ? buildActivity({
         handle,
@@ -76,12 +104,15 @@ export function ProfilePage() {
         publishedSlugs: person.storySlugs,
         likedStorySlugs: likes.liked,
         likedParagraphAnchors: myParagraphLikes,
+        stories: activityStories,
       })
     : buildActivity({
         handle,
         isSelf: false,
         comments: myComments,
         publishedSlugs: person.storySlugs,
+        stories: activityStories,
+        fallbackPool: fallbackFeed.data?.items,
       })
 
   if (isGuestSelf) {

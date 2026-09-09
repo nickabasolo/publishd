@@ -15,9 +15,6 @@ const OPTIONS = [
 const STRIPES =
   'repeating-linear-gradient(45deg, rgba(120,113,108,0.22) 0 9px, rgba(120,113,108,0) 9px 22px)'
 
-// Matches the route gate in App.tsx — see the comment there.
-const PLAYGROUND_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_PLAYGROUND === 'true'
-
 export function PrototypeBanner() {
   const { accountId, setAccountId } = useAccount()
   const { user } = useUser()
@@ -30,14 +27,12 @@ export function PrototypeBanner() {
       <div className="flex items-center gap-2 bg-surface/90 px-2 py-1 font-sans text-xs font-medium text-ink-soft backdrop-blur-sm dark:bg-surface-night/90 dark:text-stone-400">
         <FlaskConical className="h-4 w-4" />
         <span>Publishd · Prototype</span>
-        {PLAYGROUND_ENABLED && (
-          <Link
-            to="/playground"
-            className="ml-2 rounded border border-ink/10 px-1.5 py-0.5 text-ink-soft underline-offset-2 hover:underline dark:border-white/10"
-          >
-            Playground
-          </Link>
-        )}
+        <Link
+          to="/playground"
+          className="ml-2 rounded border border-ink/10 px-1.5 py-0.5 text-ink-soft underline-offset-2 hover:underline dark:border-white/10"
+        >
+          Playground
+        </Link>
       </div>
       <div className="flex items-center gap-2 bg-surface/90 px-2 py-1 backdrop-blur-sm dark:bg-surface-night/90">
         <span className="hidden font-sans text-xs text-ink-soft sm:inline dark:text-stone-400">

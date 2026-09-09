@@ -29,17 +29,12 @@ import { StoryAnalyticsPage } from '@/pages/story-analytics'
 import { ChapterEditorPage } from '@/pages/chapter-editor'
 import './index.css'
 
-// UI/UX sandbox route. Ships in a production build only when
-// VITE_ENABLE_PLAYGROUND=true is set (intended for Vercel, kept unset for
-// GitHub Pages) — always on for a local dev server. Both flags are
-// statically analyzable by Vite/Rollup, so when neither is set this whole
-// branch — including the lazy import of the playground module — is
-// dead-code-eliminated out of the build entirely, not merely hidden by a
-// runtime route guard.
-const PLAYGROUND_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_PLAYGROUND === 'true'
-const PlaygroundRoute = PLAYGROUND_ENABLED
-  ? lazy(() => import('@/playground/index').then((m) => ({ default: m.PlaygroundIndexPage })))
-  : null
+// UI/UX sandbox route. Ships in every build, every deploy target — the
+// site is only reachable by the three founders right now, so there's
+// nothing to gate.
+const PlaygroundRoute = lazy(() =>
+  import('@/playground/index').then((m) => ({ default: m.PlaygroundIndexPage })),
+)
 
 const queryClient = new QueryClient({
   defaultOptions: {

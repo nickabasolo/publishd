@@ -530,7 +530,7 @@ export const supabaseDataClient: DataClient = {
       if (!chapterRow) return null
       const { data: paras, error: pErr } = await supabase
         .from('paragraphs')
-        .select('ordinal, body')
+        .select('ordinal, body, speaker')
         .eq('chapter_id', chapterRow.id)
         .is('deleted_at', null)
         .order('ordinal', { ascending: true })

@@ -11,7 +11,12 @@ export type OAuthProvider = 'google' | 'discord'
 export async function signInWithOAuth(provider: OAuthProvider): Promise<void> {
   const { error } = await supabase.auth.signInWithOAuth({
     provider,
-    options: { redirectTo: window.location.origin },
+    // BASE_URL is Vite's configured base path (e.g. "/" on Vercel, "/publishd/"
+    // on GitHub Pages). Under BrowserRouter the app is mounted with that same
+    // value as its router basename, so the OAuth redirect must land there too
+    // — landing at the bare origin would fall outside the basename on GitHub
+    // Pages and fail to match any route.
+    options: { redirectTo: window.location.origin + import.meta.env.BASE_URL },
   })
   if (error) throw error
   // No further action here: signInWithOAuth navigates the browser away to

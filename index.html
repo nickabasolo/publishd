@@ -13,6 +13,32 @@
       rel="stylesheet"
     />
     <title>Publishd</title>
+    <!--
+      Counterpart to public/404.html (see the comment there for the full
+      explanation of the spa-github-pages trick). If we were redirected here
+      from 404.html, the real path is encoded in the query string as
+      "?/real/path&query=params". Decode it and restore the real URL via
+      history.replaceState *before* React (and React Router) mounts, so the
+      app boots on the correct route. No-op on Vercel/normal navigation,
+      where location.search never starts with "?/".
+    -->
+    <script>
+      ;(function (l) {
+        if (l.search[1] === '/') {
+          var decoded = l.search
+            .slice(1)
+            .split('&')
+            .map(function (s) {
+              return s.replace(/~and~/g, '&')
+            })
+          window.history.replaceState(
+            null,
+            '',
+            l.pathname.slice(0, -1) + decoded.shift() + (decoded.length ? '?' + decoded.join('&') : '') + l.hash
+          )
+        }
+      })(window.location)
+    </script>
   </head>
   <body>
     <div id="root"></div>

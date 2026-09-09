@@ -1,6 +1,8 @@
-// HashRouter so deep links + refreshes work on GitHub Pages (static host, no SPA rewrite).
+// BrowserRouter for clean URLs (/story/482910). Deep links + refreshes on
+// static hosts (GitHub Pages) are handled by the 404.html redirect trick;
+// Vercel handles them via vercel.json rewrites.
 import { useEffect } from 'react'
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Layout } from '@/components/layout'
 import { AccountProvider } from '@/context/account'
@@ -48,7 +50,7 @@ function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
       <DataClientProvider>
-        <HashRouter>
+        <BrowserRouter basename={import.meta.env.BASE_URL}>
           <SettingsProvider>
             <AccountProvider>
               <AuthPromptProvider>
@@ -75,7 +77,7 @@ function App() {
               </AuthPromptProvider>
             </AccountProvider>
           </SettingsProvider>
-        </HashRouter>
+        </BrowserRouter>
       </DataClientProvider>
     </QueryClientProvider>
     </ErrorBoundary>

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Publishd</title>
+    <!--
+      Single Page Apps for GitHub Pages
+      https://github.com/rafgraph/spa-github-pages
+
+      This 404.html is what GitHub Pages serves for any unknown path (it's a
+      static host with no server-side rewrites). We can't just serve
+      index.html directly under a different name because the app still needs
+      the *original* URL to route correctly client-side. So instead we
+      encode the current path/query/hash into the query string of a redirect
+      back to the site root, and a matching script in index.html decodes it
+      and restores the real URL via history.replaceState before React Router
+      ever sees it.
+
+      This app is served from a /publishd/ subpath on GitHub Pages (set via
+      VITE_BASE_PATH), so pathSegmentsToKeep is 1 — the first path segment
+      ("publishd") is preserved as-is and only the segments *after* it are
+      encoded/restored. On Vercel (root-deployed) this file is unused, since
+      vercel.json handles the rewrite server-side instead.
+    -->
+    <script>
+      var pathSegmentsToKeep = 1
+
+      var l = window.location
+      var segments = l.pathname.split('/').slice(1)
+      var kept = segments.slice(0, pathSegmentsToKeep)
+      var rest = segments.slice(pathSegmentsToKeep)
+
+      l.replace(
+        l.protocol +
+          '//' +
+          l.hostname +
+          (l.port ? ':' + l.port : '') +
+          '/' +
+          kept.join('/') +
+          (kept.length ? '/' : '') +
+          '?/' +
+          rest.join('/').replace(/&/g, '~and~') +
+          (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+          l.hash
+      )
+    </script>
+  </head>
+  <body></body>
+</html>

@@ -5,7 +5,7 @@
 import { track } from './posthog'
 
 type StorySource = 'feed' | 'search' | 'tag' | 'profile' | 'notification' | 'direct'
-type OAuthProviderOrLocal = 'google' | 'discord' | 'local'
+type OAuthProviderOrLocal = 'google' | 'discord' | 'local' | 'magiclink'
 
 export const analytics = {
   // ---- Signup & activation ----

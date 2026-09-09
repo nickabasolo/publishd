@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { AuthSheet } from '@/components/auth-sheet'
 import { useAccount } from '@/context/account'
-import { signInWithOAuth, type OAuthProvider } from '@/lib/data/supabase/auth'
+import { signInWithMagicLink, signInWithOAuth, type OAuthProvider } from '@/lib/data/supabase/auth'
 import { analytics } from '@/lib/analytics/events'
 
 interface PromptOpts {
@@ -77,6 +77,19 @@ export function AuthPromptProvider({ children }: { children: ReactNode }) {
     [action],
   )
 
+  // Supabase backend only: sends the magic-link email. Doesn't close the
+  // sheet or mark converted here — AuthSheet shows its own "check your
+  // email" state, and the real conversion (session appearing) happens later
+  // via account.tsx's listener when the user clicks the link, same as OAuth.
+  const handleMagicLink = useCallback(
+    async (email: string) => {
+      analytics.authPromptConverted(action ?? 'unspecified', 'magiclink')
+      analytics.signupStarted('magiclink')
+      await signInWithMagicLink(email)
+    },
+    [action],
+  )
+
   const value = useMemo<AuthPromptValue>(
     () => ({ isGuest: accountId === 'guest', promptAuth }),
     [accountId, promptAuth],
@@ -90,6 +103,7 @@ export function AuthPromptProvider({ children }: { children: ReactNode }) {
         action={action}
         onClose={handleClose}
         onSignIn={backend === 'supabase' ? handleOAuthSignIn : handleLocalSignIn}
+        onSendMagicLink={backend === 'supabase' ? handleMagicLink : undefined}
       />
     </AuthPromptContext.Provider>
   )

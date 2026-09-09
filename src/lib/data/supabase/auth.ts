@@ -24,6 +24,25 @@ export async function signInWithOAuth(provider: OAuthProvider): Promise<void> {
   // picks up the resulting session on return.
 }
 
+/**
+ * Email magic-link sign-in. No password, no separate reset flow — Supabase
+ * emails a one-time link that lands back on `emailRedirectTo` and creates a
+ * session, picked up by the same onAuthStateChange listener OAuth uses
+ * (src/context/account.tsx). Uses the same BASE_URL-aware redirect target as
+ * signInWithOAuth above so it resolves correctly on both GitHub Pages'
+ * /publishd/ subpath and Vercel's root.
+ *
+ * Not passing `type` defaults to Supabase's 'magiclink' flow (as opposed to
+ * `type: 'email'` OTP-code flow), which is what we want here.
+ */
+export async function signInWithMagicLink(email: string): Promise<void> {
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.origin + import.meta.env.BASE_URL },
+  })
+  if (error) throw error
+}
+
 export async function signOut(): Promise<void> {
   const { error } = await supabase.auth.signOut()
   if (error) throw error

@@ -10,6 +10,7 @@ import { AuthPromptProvider } from '@/context/auth-prompt'
 import { SettingsProvider } from '@/context/settings'
 import { DataClientProvider } from '@/lib/data'
 import { ConsentBanner } from '@/components/consent-banner'
+import { OnboardingDialog } from '@/components/onboarding-dialog'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { initAnalytics } from '@/lib/analytics/posthog'
 import { installGlobalErrorTracking } from '@/lib/analytics/error-tracking'
@@ -55,6 +56,7 @@ function App() {
             <AccountProvider>
               <AuthPromptProvider>
                 <ConsentBanner />
+                <OnboardingDialog />
                 <Routes>
                   <Route element={<Layout />}>
                     <Route path="/" element={<HomePage />} />

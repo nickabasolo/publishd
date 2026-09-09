@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement } from 'react'
+import { useEffect, useState, type FormEvent, type ReactElement } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { OAuthProvider } from '@/lib/data/supabase/auth'
@@ -9,6 +9,8 @@ interface Props {
   onClose: () => void
   /** Called with the provider that was clicked. Ignored (any provider signs in the same fake reader) on the local backend. */
   onSignIn: (provider: OAuthProvider) => void
+  /** Email magic-link sign-in. Omitted on the local backend — there's no real email auth to send. */
+  onSendMagicLink?: (email: string) => Promise<void>
 }
 
 function GoogleMark() {
@@ -47,12 +49,16 @@ const PROVIDERS: { id: OAuthProvider | 'apple'; name: string; Mark: () => ReactE
   { id: 'discord', name: 'Discord', Mark: DiscordMark },
 ]
 
-export function AuthSheet({ open, action, onClose, onSignIn }: Props) {
+export function AuthSheet({ open, action, onClose, onSignIn, onSendMagicLink }: Props) {
   const [entered, setEntered] = useState(false)
+  const [email, setEmail] = useState('')
+  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
 
   useEffect(() => {
     if (!open) {
       setEntered(false)
+      setEmail('')
+      setStatus('idle')
       return
     }
     const id = requestAnimationFrame(() => setEntered(true))
@@ -65,6 +71,18 @@ export function AuthSheet({ open, action, onClose, onSignIn }: Props) {
   }, [open, onClose])
 
   if (!open) return null
+
+  const handleMagicLink = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!onSendMagicLink || !email.trim() || status === 'sending') return
+    setStatus('sending')
+    try {
+      await onSendMagicLink(email.trim())
+      setStatus('sent')
+    } catch {
+      setStatus('error')
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-[60]">
@@ -125,6 +143,50 @@ export function AuthSheet({ open, action, onClose, onSignIn }: Props) {
             </button>
           ))}
         </div>
+
+        {onSendMagicLink && (
+          <>
+            <div className="my-4 flex items-center gap-3">
+              <div className="h-px flex-1 bg-ink/10 dark:bg-white/10" />
+              <span className="font-sans text-xs uppercase tracking-wide text-ink-soft dark:text-stone-400">
+                or
+              </span>
+              <div className="h-px flex-1 bg-ink/10 dark:bg-white/10" />
+            </div>
+
+            {status === 'sent' ? (
+              <p className="font-sans text-sm text-ink-soft dark:text-stone-400">
+                Check your email — we sent a sign-in link to <strong className="text-ink dark:text-stone-200">{email}</strong>.
+              </p>
+            ) : (
+              <form onSubmit={handleMagicLink} className="space-y-2">
+                <label className="block font-sans text-sm font-medium">
+                  <span className="sr-only">Email</span>
+                  <input
+                    type="email"
+                    required
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-md border border-ink/20 bg-paper px-3 py-2.5 font-sans text-sm outline-none focus:border-ink/40 dark:border-white/20 dark:bg-night dark:focus:border-white/40"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={status === 'sending' || !email.trim()}
+                  className="w-full rounded-md bg-ink px-4 py-2.5 font-sans text-sm font-medium text-paper hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-100/90"
+                >
+                  {status === 'sending' ? 'Sending…' : 'Send magic link'}
+                </button>
+                {status === 'error' && (
+                  <p className="font-sans text-xs text-red-600 dark:text-red-400">
+                    Something went wrong sending that link. Try again.
+                  </p>
+                )}
+              </form>
+            )}
+          </>
+        )}
       </div>
     </div>
   )

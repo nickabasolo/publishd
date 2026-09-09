@@ -1,4 +1,5 @@
 import { stories } from '@/data'
+import type { ChatFormat, ChatParticipants, ChatSpeaker } from '@/lib/types'
 
 export type ChapterState = 'draft' | 'scheduled' | 'published'
 
@@ -11,6 +12,8 @@ export interface StudioChapter {
   scheduledAt?: number
   locked: boolean // paywall
   wordCount: number
+  /** Editable chat representation, parallel to `body`. Only meaningful when the parent story's `format` is `'chat'`. */
+  messages?: { speaker: ChatSpeaker; text: string }[]
 }
 
 export interface StudioStory {
@@ -23,6 +26,10 @@ export interface StudioStory {
   status: 'ongoing' | 'complete'
   chapters: StudioChapter[]
   isNew?: boolean
+  /** Chosen once per story, for its whole lifetime. Defaults to `'prose'` when absent. */
+  format?: ChatFormat
+  /** The two-person label/color map. Only present when `format` is `'chat'`. */
+  chatParticipants?: ChatParticipants
 }
 
 // Bump when the baseline shape/content below changes — forces a re-seed.

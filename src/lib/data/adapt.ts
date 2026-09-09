@@ -31,5 +31,7 @@ export function toLegacyStory(s: ContractStory): LegacyStory {
     newChapters: s.newChapters,
     stats: s.stats,
     chapters: s.chapters,
+    format: s.format,
+    chatParticipants: s.chatParticipants,
   }
 }

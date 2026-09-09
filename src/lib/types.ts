@@ -29,6 +29,13 @@ export interface Author {
   avatarColor: string
 }
 
+export type ChatSpeaker = 'a' | 'b'
+export type ChatFormat = 'prose' | 'chat'
+export interface ChatParticipants {
+  a: { name: string; color: string }
+  b: { name: string; color: string }
+}
+
 export interface Chapter {
   id: string
   number: number
@@ -36,6 +43,8 @@ export interface Chapter {
   wordCount: number
   locked?: boolean
   paragraphs: string[]
+  /** Parallel to `paragraphs` (same length, same order) — only populated when the parent story's `format` is `'chat'`. */
+  speakers?: ChatSpeaker[]
 }
 
 export type StoryStatus = 'ongoing' | 'complete'
@@ -62,6 +71,10 @@ export interface Story {
   newChapters: number // unread chapters since the reader last opened the story
   stats: StoryStats
   chapters: Chapter[]
+  /** Chosen once per story, for its whole lifetime. Defaults to `'prose'` when absent. */
+  format?: ChatFormat
+  /** The two-person label/color map. Only present when `format` is `'chat'`. */
+  chatParticipants?: ChatParticipants
 }
 
 export interface CommentAuthor {

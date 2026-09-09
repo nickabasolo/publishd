@@ -53,9 +53,18 @@ export interface Chapter {
   wordCount: number
   locked?: boolean
   paragraphs: string[]
+  /** Parallel to `paragraphs` (same length, same order) — only populated when the parent story's `format` is `'chat'`. */
+  speakers?: ChatSpeaker[]
 }
 
 export type StoryStatus = 'ongoing' | 'complete'
+
+export type ChatSpeaker = 'a' | 'b'
+export type ChatFormat = 'prose' | 'chat'
+export interface ChatParticipants {
+  a: { name: string; color: string }
+  b: { name: string; color: string }
+}
 
 export interface StoryStats {
   hits: number
@@ -80,6 +89,10 @@ export interface Story {
   newChapters: number // unread chapters since the reader last opened the story
   stats: StoryStats
   chapters: Chapter[]
+  /** Chosen once per story, for its whole lifetime. Defaults to `'prose'` when absent. */
+  format?: ChatFormat
+  /** The two-person label/color map. Only present when `format` is `'chat'`. */
+  chatParticipants?: ChatParticipants
 }
 
 // ---- Analytics --------------------------------------------------------------
@@ -184,6 +197,8 @@ export interface StudioChapter {
   scheduledAt?: number
   locked: boolean // paywall
   wordCount: number
+  /** Editable chat representation, parallel to `body`. Only meaningful when the parent story's `format` is `'chat'`. */
+  messages?: { speaker: ChatSpeaker; text: string }[]
 }
 
 export interface StudioStory {
@@ -198,6 +213,10 @@ export interface StudioStory {
   status: StoryStatus
   chapters: StudioChapter[]
   isNew?: boolean
+  /** Chosen once per story, for its whole lifetime. Defaults to `'prose'` when absent. */
+  format?: ChatFormat
+  /** The two-person label/color map. Only present when `format` is `'chat'`. */
+  chatParticipants?: ChatParticipants
 }
 
 // ---- Auth / accounts --------------------------------------------------------

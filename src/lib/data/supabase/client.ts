@@ -17,6 +17,9 @@ import type { DataClient } from '../client'
 import type {
   ChapterCommentCounts,
   ChapterState,
+  ChatFormat,
+  ChatParticipants,
+  ChatSpeaker,
   Comment,
   InProgressRead,
   Notification,
@@ -233,13 +236,13 @@ async function fetchPublishedChapters(storyId: string): Promise<{ rows: ChapterR
   if (chapterRows.length > 0) {
     const { data: paras, error: pErr } = await supabase
       .from('paragraphs')
-      .select('chapter_id, ordinal, body')
+      .select('chapter_id, ordinal, body, speaker')
       .in('chapter_id', chapterRows.map((c) => c.id))
       .is('deleted_at', null)
     if (pErr) throw pErr
     for (const p of paras ?? []) {
       const list = paragraphs.get(p.chapter_id) ?? []
-      list.push({ ordinal: p.ordinal, body: p.body })
+      list.push({ ordinal: p.ordinal, body: p.body, speaker: p.speaker })
       paragraphs.set(p.chapter_id, list)
     }
   }
@@ -256,7 +259,8 @@ async function storiesToPage(rows: StoryRow[], nextCursor: string | null): Promi
   return { items, nextCursor }
 }
 
-const STORY_COLUMNS = 'id, slug, public_id, author_id, title, blurb, synopsis, cover_color, status, is_published, updated_at'
+const STORY_COLUMNS =
+  'id, slug, public_id, author_id, title, blurb, synopsis, cover_color, status, is_published, updated_at, format, chat_participants'
 
 // ---- studio helpers -------------------------------------------------------
 
@@ -269,12 +273,16 @@ interface StudioStoryRow {
   synopsis: string
   cover_color: string
   status: string
+  format?: string | null
+  chat_participants?: ChatParticipants | null
 }
+
+const STUDIO_STORY_COLUMNS = 'id, slug, public_id, title, blurb, synopsis, cover_color, status, format, chat_participants'
 
 async function getOwnStudioStoryRow(slug: string, userId: string): Promise<StudioStoryRow | null> {
   const { data, error } = await supabase
     .from('stories')
-    .select('id, slug, public_id, title, blurb, synopsis, cover_color, status')
+    .select(STUDIO_STORY_COLUMNS)
     .eq('slug', slug)
     .eq('author_id', userId)
     .maybeSingle()
@@ -301,7 +309,7 @@ async function fetchStudioStoryTags(storyId: string): Promise<string[]> {
     .filter((s): s is string => Boolean(s))
 }
 
-async function fetchStudioChapters(storyId: string): Promise<StudioChapter[]> {
+async function fetchStudioChapters(storyId: string, format: ChatFormat): Promise<StudioChapter[]> {
   const { data: rows, error } = await supabase
     .from('chapters')
     .select('id, number, title, state, hidden, locked, word_count, scheduled_at, created_at')
@@ -313,7 +321,7 @@ async function fetchStudioChapters(storyId: string): Promise<StudioChapter[]> {
 
   const { data: paras, error: pErr } = await supabase
     .from('paragraphs')
-    .select('chapter_id, ordinal, body')
+    .select('chapter_id, ordinal, body, speaker')
     .in(
       'chapter_id',
       chapterRows.map((c) => c.id),
@@ -323,32 +331,34 @@ async function fetchStudioChapters(storyId: string): Promise<StudioChapter[]> {
   const byChapter = new Map<string, ParagraphRow[]>()
   for (const p of paras ?? []) {
     const list = byChapter.get(p.chapter_id) ?? []
-    list.push({ ordinal: p.ordinal, body: p.body })
+    list.push({ ordinal: p.ordinal, body: p.body, speaker: p.speaker })
     byChapter.set(p.chapter_id, list)
   }
 
-  return chapterRows.map((c, i) => ({
-    id: c.id,
-    // Unpublished chapters have no assigned `number` (see 0003_content.sql —
-    // it's only ever set at publish). Falling back to creation order here is
-    // purely cosmetic display numbering for the Studio chapter list, never
-    // written back to the DB and never confused with the real, permanent
-    // `number` a chapter gets on publish.
-    number: c.number ?? i + 1,
-    title: c.title,
-    body: (byChapter.get(c.id) ?? [])
-      .sort((a, b) => a.ordinal - b.ordinal)
-      .map((p) => p.body)
-      .join('\n\n'),
-    state: c.state as ChapterState,
-    scheduledAt: c.scheduled_at ? new Date(c.scheduled_at).getTime() : undefined,
-    locked: c.locked,
-    wordCount: c.word_count,
-  }))
+  return chapterRows.map((c, i) => {
+    const sorted = (byChapter.get(c.id) ?? []).sort((a, b) => a.ordinal - b.ordinal)
+    return {
+      id: c.id,
+      // Unpublished chapters have no assigned `number` (see 0003_content.sql —
+      // it's only ever set at publish). Falling back to creation order here is
+      // purely cosmetic display numbering for the Studio chapter list, never
+      // written back to the DB and never confused with the real, permanent
+      // `number` a chapter gets on publish.
+      number: c.number ?? i + 1,
+      title: c.title,
+      body: sorted.map((p) => p.body).join('\n\n'),
+      state: c.state as ChapterState,
+      scheduledAt: c.scheduled_at ? new Date(c.scheduled_at).getTime() : undefined,
+      locked: c.locked,
+      wordCount: c.word_count,
+      messages: format === 'chat' ? sorted.map((p) => ({ speaker: (p.speaker as ChatSpeaker) ?? 'a', text: p.body })) : undefined,
+    }
+  })
 }
 
 async function buildStudioStory(row: StudioStoryRow): Promise<StudioStory> {
-  const [tags, chapters] = await Promise.all([fetchStudioStoryTags(row.id), fetchStudioChapters(row.id)])
+  const format = (row.format as ChatFormat | undefined) ?? 'prose'
+  const [tags, chapters] = await Promise.all([fetchStudioStoryTags(row.id), fetchStudioChapters(row.id, format)])
   return {
     slug: row.slug,
     publicId: String(row.public_id),
@@ -359,6 +369,8 @@ async function buildStudioStory(row: StudioStoryRow): Promise<StudioStory> {
     coverColor: row.cover_color,
     status: row.status as StoryStatus,
     chapters,
+    format,
+    chatParticipants: row.chat_participants ?? undefined,
   }
 }
 
@@ -1235,6 +1247,34 @@ export const supabaseDataClient: DataClient = {
       return slug
     },
 
+    async createStoryWithFirstChapter(format) {
+      const userId = await requireUserId()
+      const slug = `draft-${crypto.randomUUID().slice(0, 8)}`
+      const { data: story, error: storyErr } = await supabase
+        .from('stories')
+        .insert({
+          slug,
+          author_id: userId,
+          title: 'Untitled story',
+          blurb: '',
+          synopsis: '',
+          cover_color: '#6366f1',
+          status: 'ongoing',
+          is_published: false,
+          format,
+        })
+        .select('id')
+        .single()
+      if (storyErr) throw storyErr
+      const { data: chapter, error: chapterErr } = await supabase
+        .from('chapters')
+        .insert({ story_id: story.id, title: 'Untitled chapter', state: 'draft', locked: false })
+        .select('id')
+        .single()
+      if (chapterErr) throw chapterErr
+      return { slug, chapterId: chapter.id }
+    },
+
     async updateStory(slug, patch) {
       const userId = await requireUserId()
       const story = await getOwnStudioStoryRow(slug, userId)
@@ -1246,6 +1286,8 @@ export const supabaseDataClient: DataClient = {
       if (patch.synopsis !== undefined) fields.synopsis = patch.synopsis
       if (patch.coverColor !== undefined) fields.cover_color = patch.coverColor
       if (patch.status !== undefined) fields.status = patch.status
+      if (patch.format !== undefined) fields.format = patch.format
+      if (patch.chatParticipants !== undefined) fields.chat_participants = patch.chatParticipants
       if (Object.keys(fields).length > 0) {
         const { error } = await supabase.from('stories').update(fields).eq('id', story.id)
         if (error) throw error
@@ -1289,6 +1331,19 @@ export const supabaseDataClient: DataClient = {
     },
 
     async updateChapter(_slug, chapterId, patch) {
+      if (patch.messages !== undefined) {
+        // Chat-format sibling of the save_chapter_draft RPC below — same
+        // ordinal-reshuffle diff, plus a speaker column. See
+        // 0018_chat_format.sql.
+        const { error } = await supabase.rpc('save_chat_chapter_draft', {
+          p_chapter_id: chapterId,
+          p_title: patch.title ?? null,
+          p_messages: patch.messages,
+          p_locked: patch.locked ?? null,
+        })
+        if (error) throw error
+        return
+      }
       if (patch.body !== undefined) {
         // Routes through the paragraph-diff RPC (0010/0011) rather than a
         // direct table write — this is what keeps comment anchors stable

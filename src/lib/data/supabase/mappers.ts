@@ -4,6 +4,9 @@
 import type {
   AuthorInfo,
   Chapter,
+  ChatFormat,
+  ChatParticipants,
+  ChatSpeaker,
   Comment,
   CommentReply,
   Notification,
@@ -38,6 +41,8 @@ export interface StoryRow {
   status: string
   is_published: boolean
   updated_at: string
+  format?: string | null
+  chat_participants?: ChatParticipants | null
 }
 
 export interface ChapterRow {
@@ -53,6 +58,7 @@ export interface ChapterRow {
 export interface ParagraphRow {
   ordinal: number
   body: string
+  speaker?: 'a' | 'b' | null
 }
 
 export interface CommentAuthorRow {
@@ -131,17 +137,22 @@ export function toStory(
     newChapters: opts.newChapters,
     stats: opts.stats,
     chapters: opts.chapters,
+    format: (row.format as ChatFormat | undefined) ?? 'prose',
+    chatParticipants: row.chat_participants ?? undefined,
   }
 }
 
 export function toChapter(row: ChapterRow, paragraphs: ParagraphRow[]): Chapter {
+  const sorted = [...paragraphs].sort((a, b) => a.ordinal - b.ordinal)
+  const hasSpeakers = sorted.some((p) => p.speaker != null)
   return {
     id: row.id,
     number: row.number ?? 0,
     title: row.title,
     wordCount: row.word_count,
     locked: row.locked,
-    paragraphs: [...paragraphs].sort((a, b) => a.ordinal - b.ordinal).map((p) => p.body),
+    paragraphs: sorted.map((p) => p.body),
+    speakers: hasSpeakers ? sorted.map((p) => (p.speaker as ChatSpeaker) ?? 'a') : undefined,
   }
 }
 

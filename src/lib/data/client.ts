@@ -111,6 +111,8 @@ export interface DataClient {
     listMine(): Promise<StudioStory[]>
     getBySlug(slug: string): Promise<StudioStory | null>
     createStory(): Promise<string>
+    /** Creates a new story with the given format plus its first chapter, in one call. */
+    createStoryWithFirstChapter(format: 'prose' | 'chat'): Promise<{ slug: string; chapterId: string }>
     updateStory(slug: string, patch: Partial<StudioStory>): Promise<void>
     addChapter(slug: string): Promise<string>
     updateChapter(slug: string, chapterId: string, patch: Partial<StudioChapter>): Promise<void>

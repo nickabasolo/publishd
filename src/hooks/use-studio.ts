@@ -186,6 +186,62 @@ export function useStudio() {
     },
   })
 
+  const createStoryWithFirstChapterMutation = useMutation({
+    mutationFn: (format: 'prose' | 'chat') => client.studio.createStoryWithFirstChapter(format),
+    onMutate: async (format: 'prose' | 'chat') => {
+      await qc.cancelQueries({ queryKey: key })
+      const tempSlug = `draft-${uid().slice(0, 8)}`
+      const tempChapterId = uid()
+      const prev = applyOptimistic((list) => [
+        {
+          slug: tempSlug,
+          title: 'Untitled story',
+          blurb: '',
+          synopsis: '',
+          tags: [],
+          coverColor: '#6366f1',
+          status: 'ongoing',
+          format,
+          chapters: [
+            {
+              id: tempChapterId,
+              number: 1,
+              title: 'Untitled chapter',
+              body: '',
+              state: 'draft' as ChapterState,
+              locked: false,
+              wordCount: 0,
+              messages: format === 'chat' ? [] : undefined,
+            },
+          ],
+          isNew: true,
+        },
+        ...list,
+      ])
+      return { prev, tempSlug, tempChapterId }
+    },
+    onError: (_err, _format, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev)
+    },
+    onSuccess: ({ slug, chapterId }, _format, ctx) => {
+      if (ctx?.tempSlug && (ctx.tempSlug !== slug || ctx.tempChapterId !== chapterId)) {
+        qc.setQueryData<StudioStory[]>(key, (list) =>
+          (list ?? []).map((s) =>
+            s.slug === ctx.tempSlug
+              ? {
+                  ...s,
+                  slug,
+                  chapters: s.chapters.map((c) => (c.id === ctx.tempChapterId ? { ...c, id: chapterId } : c)),
+                }
+              : s,
+          ),
+        )
+      }
+      analytics.storyCreated()
+      analytics.chapterCreated(slug)
+    },
+  })
+
   const addChapterMutation = useMutation({
     mutationFn: ({ slug }: { slug: string }) => client.studio.addChapter(slug),
     onMutate: async ({ slug }: { slug: string }) => {
@@ -232,6 +288,10 @@ export function useStudio() {
   })
 
   const createStory = useCallback(() => createStoryMutation.mutateAsync(), [createStoryMutation])
+  const createStoryWithFirstChapter = useCallback(
+    (format: 'prose' | 'chat') => createStoryWithFirstChapterMutation.mutateAsync(format),
+    [createStoryWithFirstChapterMutation],
+  )
   const addChapter = useCallback(
     (slug: string) => addChapterMutation.mutateAsync({ slug }),
     [addChapterMutation],
@@ -269,6 +329,7 @@ export function useStudio() {
     stories,
     getStudioStory,
     createStory,
+    createStoryWithFirstChapter,
     updateStory,
     addChapter,
     updateChapter,

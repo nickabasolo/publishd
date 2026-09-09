@@ -591,6 +591,37 @@ export const localDataClient: DataClient = {
       ])
       return slug
     },
+    async createStoryWithFirstChapter(format) {
+      const slug = `draft-${uid().slice(0, 8)}`
+      const chapterId = uid()
+      mutateStudio(currentUserRecord().username, (list) => [
+        {
+          slug,
+          title: 'Untitled story',
+          blurb: '',
+          synopsis: '',
+          tags: [],
+          coverColor: '#6366f1',
+          status: 'ongoing',
+          format,
+          chapters: [
+            {
+              id: chapterId,
+              number: 1,
+              title: 'Untitled chapter',
+              body: '',
+              state: 'draft' as ChapterState,
+              locked: false,
+              wordCount: 0,
+              messages: format === 'chat' ? [] : undefined,
+            },
+          ],
+          isNew: true,
+        },
+        ...list,
+      ])
+      return { slug, chapterId }
+    },
     async updateStory(slug, patch) {
       mutateStudio(currentUserRecord().username, (list) =>
         list.map((s) => (s.slug === slug ? { ...s, ...(patch as Partial<LegacyStudioStory>) } : s)),
@@ -622,9 +653,21 @@ export const localDataClient: DataClient = {
       return id
     },
     async updateChapter(slug, chapterId, patch) {
+      // No LCS-diff replication here — Local's paragraphs have no
+      // comment-anchor-stability guarantee to preserve (unlike Supabase's
+      // save_chapter_draft/save_chat_chapter_draft), so a chat-format update
+      // is just: store `messages`, and derive `body`/`wordCount` by
+      // flattening (mirrors how the prose path derives `wordCount` from
+      // `body` below).
       mutateStudioChapter(currentUserRecord().username, slug, chapterId, (c) => {
         const next = { ...c, ...(patch as Partial<LegacyStudioChapter>) }
-        if (patch.body !== undefined) next.wordCount = countWords(patch.body)
+        if (patch.messages !== undefined) {
+          const text = patch.messages.map((m) => m.text).join('\n\n')
+          next.body = text
+          next.wordCount = countWords(text)
+        } else if (patch.body !== undefined) {
+          next.wordCount = countWords(patch.body)
+        }
         return next
       })
     },

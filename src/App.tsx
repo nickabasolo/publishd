@@ -1,7 +1,7 @@
 // BrowserRouter for clean URLs (/story/482910). Deep links + refreshes on
 // static hosts (GitHub Pages) are handled by the 404.html redirect trick;
 // Vercel handles them via vercel.json rewrites.
-import { useEffect } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Layout } from '@/components/layout'
@@ -28,6 +28,15 @@ import { StoryManagerPage } from '@/pages/story-manager'
 import { StoryAnalyticsPage } from '@/pages/story-analytics'
 import { ChapterEditorPage } from '@/pages/chapter-editor'
 import './index.css'
+
+// Dev-only UI/UX sandbox route. import.meta.env.DEV is statically
+// analyzable by Vite/Rollup, so this whole branch — including the lazy
+// import of the playground module and its fixtures — is dead-code-eliminated
+// out of `npm run build` (production) entirely, not merely hidden by a
+// runtime route guard.
+const PlaygroundRoute = import.meta.env.DEV
+  ? lazy(() => import('@/playground/playground-index').then((m) => ({ default: m.PlaygroundIndexPage })))
+  : null
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -73,6 +82,16 @@ function App() {
                     <Route path="/studio/:slug/analytics" element={<StoryAnalyticsPage />} />
                     <Route path="/studio/:slug/:chapterId" element={<ChapterEditorPage />} />
                     <Route path="/settings" element={<SettingsPage />} />
+                    {PlaygroundRoute && (
+                      <Route
+                        path="/playground"
+                        element={
+                          <Suspense fallback={null}>
+                            <PlaygroundRoute />
+                          </Suspense>
+                        }
+                      />
+                    )}
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Route>
                 </Routes>

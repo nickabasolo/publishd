@@ -1,4 +1,5 @@
 import { FlaskConical } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { Segmented } from '@/components/ui/segmented'
 import { useAccount } from '@/context/account'
 import { useUser } from '@/hooks/use-user'
@@ -26,6 +27,14 @@ export function PrototypeBanner() {
       <div className="flex items-center gap-2 bg-surface/90 px-2 py-1 font-sans text-xs font-medium text-ink-soft backdrop-blur-sm dark:bg-surface-night/90 dark:text-stone-400">
         <FlaskConical className="h-4 w-4" />
         <span>Publishd · Prototype</span>
+        {import.meta.env.DEV && (
+          <Link
+            to="/playground"
+            className="ml-2 rounded border border-ink/10 px-1.5 py-0.5 text-ink-soft underline-offset-2 hover:underline dark:border-white/10"
+          >
+            Playground
+          </Link>
+        )}
       </div>
       <div className="flex items-center gap-2 bg-surface/90 px-2 py-1 backdrop-blur-sm dark:bg-surface-night/90">
         <span className="hidden font-sans text-xs text-ink-soft sm:inline dark:text-stone-400">

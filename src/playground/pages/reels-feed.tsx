@@ -2,7 +2,7 @@
 // Fully self-contained, hardcoded Lorem Ipsum data. Not wired to any real data
 // layer, no navigation to real routes. Playground page only — throwaway.
 import { useEffect, useRef, useState } from 'react'
-import { Heart, MessageCircle, Share2, Bookmark, X } from 'lucide-react'
+import { Heart, MessageCircle, Share2, Bookmark, X, ChevronLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
@@ -44,6 +44,8 @@ interface DrabbleItem {
   text: string
   likes: number
   comments: number
+  tags: string[]
+  note?: string
 }
 
 interface LongformItem {
@@ -54,6 +56,8 @@ interface LongformItem {
   intro: string
   likes: number
   comments: number
+  tags: string[]
+  note?: string
 }
 
 interface ChatItem {
@@ -65,6 +69,8 @@ interface ChatItem {
   messages: { speaker: 'a' | 'b'; text: string }[]
   likes: number
   comments: number
+  tags: string[]
+  note?: string
 }
 
 type FeedItem = DrabbleItem | LongformItem | ChatItem
@@ -78,6 +84,8 @@ const FEED: FeedItem[] = [
     text: 'Lorem ipsum dolor sit amet, the orchard hummed at dusk. Each tree held a memory instead of fruit, and she picked the ripest one — her mother\'s laugh, still warm. Consectetur adipiscing elit, the gardener never told anyone what she\'d done.',
     likes: 482,
     comments: 31,
+    tags: ['fluff', 'magical realism', 'hurt/comfort'],
+    note: 'based on a request 🥺',
   },
   {
     id: 'c1',
@@ -95,6 +103,7 @@ const FEED: FeedItem[] = [
     ],
     likes: 901,
     comments: 118,
+    tags: ['sci-fi au', 'slow burn', 'college au', 'pining'],
   },
   {
     id: 'l1',
@@ -105,6 +114,8 @@ const FEED: FeedItem[] = [
       'Lorem ipsum dolor sit amet, consectetur adipiscing elit. The lighthouse keeper counted ships the way other men counted sheep, and on the night the storm rolled in, he counted one that shouldn\'t have existed. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua — a hull with no name, running dark against the swell.',
     likes: 1240,
     comments: 76,
+    tags: ['angst', 'slow burn', 'mystery'],
+    note: 'unbeta\'d, we die like fans',
   },
   {
     id: 'd2',
@@ -114,6 +125,7 @@ const FEED: FeedItem[] = [
     text: 'Ut enim ad minim veniam: the elevator stalled between floors, and for ninety seconds they said everything they\'d been too polite to say for ninety days. Quis nostrud exercitation ullamco laboris — then the lights flickered back on, and so did the silence.',
     likes: 356,
     comments: 22,
+    tags: ['fluff', 'strangers to lovers'],
   },
   {
     id: 'l2',
@@ -124,6 +136,8 @@ const FEED: FeedItem[] = [
       'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore. He\'d mapped every coastline on the continent except his own hometown, and everyone had a theory why. Excepteur sint occaecat cupidatat non proident — the truth was smaller and sadder than any of them.',
     likes: 689,
     comments: 54,
+    tags: ['hurt/comfort', 'found family', 'mystery', 'slow burn'],
+    note: 'based on a request 🥺',
   },
   {
     id: 'c2',
@@ -140,6 +154,7 @@ const FEED: FeedItem[] = [
     ],
     likes: 214,
     comments: 19,
+    tags: ['college au', 'fluff', 'crack'],
   },
   {
     id: 'd3',
@@ -149,6 +164,8 @@ const FEED: FeedItem[] = [
     text: 'Sed ut perspiciatis unde omnis iste natus error: she kept a list of things she\'d never say out loud, filed alphabetically, updated weekly. Sit voluptatem accusantium doloremque laudantium — under "M" there was only one entry, and it hadn\'t changed in years.',
     likes: 527,
     comments: 40,
+    tags: ['angst', 'unrequited love'],
+    note: 'unbeta\'d, we die like fans',
   },
   {
     id: 'l3',
@@ -159,6 +176,7 @@ const FEED: FeedItem[] = [
       'Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit. The weather machine had been broken for a decade, but the old man still climbed the tower every morning to turn its dead crank. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet — someone had to keep pretending.',
     likes: 803,
     comments: 61,
+    tags: ['slice of life', 'bittersweet', 'found family'],
   },
   {
     id: 'c3',
@@ -176,6 +194,8 @@ const FEED: FeedItem[] = [
     ],
     likes: 445,
     comments: 28,
+    tags: ['fluff', 'slow burn', 'rainy day'],
+    note: 'based on a request 🥺',
   },
   {
     id: 'd4',
@@ -185,6 +205,7 @@ const FEED: FeedItem[] = [
     text: 'Ut enim ad minima veniam, quis nostrum exercitationem ullam: the shop only accepted returns of things that had never truly belonged to you. He\'d been standing in line for three hours with a heart he swore wasn\'t his. Corporis suscipit laboriosam — the clerk just smiled and reached for the ledger.',
     likes: 612,
     comments: 47,
+    tags: ['magical realism', 'bittersweet'],
   },
   {
     id: 'l4',
@@ -195,14 +216,16 @@ const FEED: FeedItem[] = [
       'At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium. She\'d played the same role for eleven years without ever going on, and when the call finally came, she almost said no. Voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi — almost.',
     likes: 958,
     comments: 83,
+    tags: ['found family', 'slow burn', 'hurt/comfort'],
+    note: 'unbeta\'d, we die like fans',
   },
 ]
 
 const FOLLOWING_AUTHORS: Author[] = [
-  { name: 'Haeun Song', handle: 'haeunwrites', color: '#d94f8c' },
-  { name: 'Callum Reyes', handle: 'callumr', color: '#3a8de0' },
-  { name: 'Mireille Tanaka', handle: 'mirtee', color: '#7c5cff' },
-  { name: 'Jonah Ackerman', handle: 'jonahwrites', color: '#2f9e6f' },
+  { name: 'Haeun Song', handle: 'jaeminluvr', color: '#d94f8c' },
+  { name: 'Callum Reyes', handle: 'omegafics', color: '#3a8de0' },
+  { name: 'Mireille Tanaka', handle: 'minhyukfilms', color: '#7c5cff' },
+  { name: 'Jonah Ackerman', handle: 'omega_archivist', color: '#2f9e6f' },
 ]
 
 const FOLLOWING: FeedItem[] = [
@@ -211,26 +234,30 @@ const FOLLOWING: FeedItem[] = [
     type: 'drabble',
     author: FOLLOWING_AUTHORS[0],
     title: 'Green Room, 11:58PM',
-    text: 'Sera counts the mic checks under her breath, three fingers tapping her knee — the same tic she\'s had since trainee days. Beside her, Rin passes a water bottle without being asked. "You\'re going to be fine," Rin says, not looking up from her own reflection. "You always say that." "I\'m always right." Two minutes to stage.',
-    likes: 764,
-    comments: 58,
+    text: 'Jaehyun counts the mic checks under his breath, three fingers tapping his knee — the same tic he\'s had since trainee days. Beside him, Minhyuk passes a water bottle without being asked. "You\'re going to be fine," Minhyuk says, not looking up from his own reflection. "You always say that." "I\'m always right." Two minutes to OMEGA\'s stage.',
+    likes: 2104,
+    comments: 189,
+    tags: ['omega', 'jaehyun x minhyuk', 'pre-debut', 'fluff'],
+    note: 'based on a request 🥺',
   },
   {
     id: 'fc1',
     type: 'chat',
     author: FOLLOWING_AUTHORS[1],
-    title: 'dorm group chat (MOONFRAME)',
-    participants: { a: { name: 'Yuna', color: '#e0623a' }, b: { name: 'Dahee', color: '#c98a1f' } },
+    title: 'dorm group chat (OMEGA)',
+    participants: { a: { name: 'Jaehyun', color: '#e0623a' }, b: { name: 'Minhyuk', color: '#c98a1f' } },
     messages: [
       { speaker: 'a', text: 'who ate my leftover tteokbokki i am not joking' },
-      { speaker: 'b', text: 'it was sitting out for two days yuna. it was a public health decision' },
+      { speaker: 'b', text: 'it was sitting out for two days jaehyun. it was a public health decision' },
       { speaker: 'a', text: 'a PUBLIC. HEALTH. DECISION.' },
       { speaker: 'b', text: 'i\'ll buy you a new one before the fan sign, i promise' },
       { speaker: 'a', text: 'fine. but i\'m telling the manager it was you if he asks about the fridge smell' },
       { speaker: 'b', text: 'that\'s so unfair and also completely valid' },
     ],
-    likes: 1120,
-    comments: 143,
+    likes: 3350,
+    comments: 402,
+    tags: ['omega', 'jaehyun x minhyuk', 'chat au', 'crack'],
+    note: 'unbeta\'d, we die like fans',
   },
   {
     id: 'fl1',
@@ -238,25 +265,27 @@ const FOLLOWING: FeedItem[] = [
     author: FOLLOWING_AUTHORS[2],
     title: 'Comeback Week',
     intro:
-      'The countdown clock in the practice room read six days, and Taeo still hadn\'t landed the last eight-count clean. Jinho watched from the mirror instead of the door, which was how he always knew something was wrong before Taeo said a word. "You\'re rushing the turn because you\'re scared of the formation change," Jinho said. "I know my own choreo." "Then stop fighting it." Six days. Five, after tonight.',
-    likes: 1389,
-    comments: 97,
+      'The countdown clock in the practice room read six days, and Minhyuk still hadn\'t landed the last eight-count clean. Jaehyun watched from the mirror instead of the door, which was how he always knew something was wrong before Minhyuk said a word. "You\'re rushing the turn because you\'re scared of the formation change," Jaehyun said. "I know my own choreo." "Then stop fighting it." Six days. Five, after tonight.',
+    likes: 4210,
+    comments: 297,
+    tags: ['omega', 'jaehyun x minhyuk', 'slow burn', 'comeback era'],
   },
   {
     id: 'fd2',
     type: 'drabble',
     author: FOLLOWING_AUTHORS[3],
     title: 'Trainee Room 4B',
-    text: 'Before ONYX ROAD had a name, they had a room with bad lighting and a mirror wall that lied about how far they\'d come. Baek learned harmony parts by humming them into his pillow at 2AM so the RA wouldn\'t hear. Jinho learned to sleep sitting up. Neither of them thought they\'d debut together. Neither of them was wrong to hope anyway.',
-    likes: 592,
-    comments: 44,
+    text: 'Before OMEGA had a name, they had a room with bad lighting and a mirror wall that lied about how far they\'d come. Jaehyun learned harmony parts by humming them into his pillow at 2AM so the RA wouldn\'t hear. Minhyuk learned to sleep sitting up. Neither of them thought they\'d debut together. Neither of them was wrong to hope anyway.',
+    likes: 1892,
+    comments: 144,
+    tags: ['omega', 'jaehyun x minhyuk', 'pre-debut', 'angst'],
   },
   {
     id: 'fc2',
     type: 'chat',
     author: FOLLOWING_AUTHORS[0],
     title: 'texting during soundcheck',
-    participants: { a: { name: 'Dahee', color: '#d94f8c' }, b: { name: 'Sera', color: '#2f9e6f' } },
+    participants: { a: { name: 'Minhyuk', color: '#d94f8c' }, b: { name: 'Jaehyun', color: '#2f9e6f' } },
     messages: [
       { speaker: 'b', text: 'did you see the setlist change. we\'re opening with the b-side now' },
       { speaker: 'a', text: 'WHAT. that\'s the one with my solo run i haven\'t warmed up for' },
@@ -264,8 +293,10 @@ const FOLLOWING: FeedItem[] = [
       { speaker: 'a', text: 'that is deeply embarrassing information and also comforting somehow' },
       { speaker: 'b', text: 'that\'s kind of our whole dynamic though' },
     ],
-    likes: 848,
-    comments: 71,
+    likes: 2648,
+    comments: 231,
+    tags: ['omega', 'jaehyun x minhyuk', 'chat au', 'fluff'],
+    note: 'based on a request 🥺',
   },
   {
     id: 'fl2',
@@ -273,18 +304,21 @@ const FOLLOWING: FeedItem[] = [
     author: FOLLOWING_AUTHORS[1],
     title: 'The Understudy Slot',
     intro:
-      'Rin had been the backup center for two full eras before anyone outside the company knew her name. She\'d memorized every formation from every angle, just in case, and never once let it show on her face when "just in case" didn\'t happen. Then Sera turned her ankle three days before the award show, and the choreographer looked straight at Rin and said the sentence she\'d rehearsed hearing for years.',
-    likes: 1204,
-    comments: 88,
+      'Minhyuk had been the backup center for two full eras before anyone outside the company knew his name. He\'d memorized every formation from every angle, just in case, and never once let it show on his face when "just in case" didn\'t happen. Then Jaehyun turned his ankle three days before the award show, and the choreographer looked straight at Minhyuk and said the sentence he\'d rehearsed hearing for years.',
+    likes: 3804,
+    comments: 288,
+    tags: ['omega', 'jaehyun x minhyuk', 'slow burn', 'hurt/comfort'],
+    note: 'unbeta\'d, we die like fans',
   },
   {
     id: 'fd3',
     type: 'drabble',
     author: FOLLOWING_AUTHORS[2],
     title: 'Fan Sign Nerves',
-    text: 'Yuna signed the same photocard for the ninetieth time and still meant it every time, even when her wrist ached and the marker was running dry. A fan slid a handwritten note across the table instead of asking a question. Yuna read three words of it, looked up, and had to blink hard before she could smile again.',
-    likes: 671,
-    comments: 52,
+    text: 'Riho signed the same photocard for the ninetieth time and still meant it every time, even when her wrist ached and the marker was running dry. A fan slid a handwritten note across the table instead of asking a question. Riho read three words of it, looked up, and had to blink hard before she could smile again.',
+    likes: 1271,
+    comments: 92,
+    tags: ['omega', 'riho', 'slice of life'],
   },
   {
     id: 'fl3',
@@ -292,16 +326,18 @@ const FOLLOWING: FeedItem[] = [
     author: FOLLOWING_AUTHORS[3],
     title: 'Encore',
     intro:
-      'Nobody had told LIONHEART the tour was ending after this city, but Baek could feel it in the way the crew kept hugging them a second too long between sets. On the last chorus of the encore, Taeo grabbed his hand mid-choreo — half a beat off the count, completely against the formation — and neither of them let go until the lights actually came up.',
-    likes: 1502,
-    comments: 121,
+      'Nobody had told OMEGA the tour was ending after this city, but Jaehyun could feel it in the way the crew kept hugging them a second too long between sets. On the last chorus of the encore, Minhyuk grabbed his hand mid-choreo — half a beat off the count, completely against the formation — and neither of them let go until the lights actually came up.',
+    likes: 5102,
+    comments: 411,
+    tags: ['omega', 'jaehyun x minhyuk', 'tour era', 'slow burn'],
+    note: 'based on a request 🥺',
   },
   {
     id: 'fc3',
     type: 'chat',
     author: FOLLOWING_AUTHORS[3],
     title: 'airport chat, 4am flight',
-    participants: { a: { name: 'Baek', color: '#7c5cff' }, b: { name: 'Jinho', color: '#e0a23a' } },
+    participants: { a: { name: 'Jaehyun', color: '#7c5cff' }, b: { name: 'Minhyuk', color: '#e0a23a' } },
     messages: [
       { speaker: 'a', text: 'gate change again. we\'re at C22 now' },
       { speaker: 'b', text: 'of course we are. i just bought coffee at the other end of the terminal' },
@@ -309,17 +345,19 @@ const FOLLOWING: FeedItem[] = [
       { speaker: 'b', text: 'the manager is going to leave us both here' },
       { speaker: 'a', text: 'he loves us too much for that. probably' },
     ],
-    likes: 933,
-    comments: 65,
+    likes: 2933,
+    comments: 265,
+    tags: ['omega', 'jaehyun x minhyuk', 'chat au', 'domestic'],
   },
   {
     id: 'fd4',
     type: 'drabble',
     author: FOLLOWING_AUTHORS[1],
     title: 'Practice Room, After Hours',
-    text: 'Mireille kept the lights low and the music lower, running the bridge one more time even though everyone else had gone back to the dorm. She wasn\'t chasing perfect. She was chasing the exact half-second where the choreo stopped feeling like counting and started feeling like flying. Tonight, on the eleventh try, she found it — and immediately wanted to do it again.',
-    likes: 540,
-    comments: 39,
+    text: 'Minhyuk kept the lights low and the music lower, running the bridge one more time even though everyone else had gone back to the dorm. He wasn\'t chasing perfect. He was chasing the exact half-second where the choreo stopped feeling like counting and started feeling like flying. Tonight, on the eleventh try, Jaehyun leaned in the doorway and watched him find it — and neither of them said anything about why they both smiled.',
+    likes: 1940,
+    comments: 139,
+    tags: ['omega', 'jaehyun x minhyuk', 'slow burn'],
   },
 ]
 
@@ -565,6 +603,30 @@ function AuthorRow({ author }: { author: Author }) {
   )
 }
 
+function TagPill({ tag }: { tag: string }) {
+  return (
+    <span className="inline-flex w-fit items-center rounded-full bg-white/10 px-2.5 py-0.5 font-sans text-[11px] font-medium text-white/80 backdrop-blur-sm">
+      {tag}
+    </span>
+  )
+}
+
+/** Tag pills + optional author caption, rendered beneath the author chip on a card. */
+function AuthorMeta({ tags, note }: { tags: string[]; note?: string }) {
+  return (
+    <div className="mt-1.5 flex max-w-[220px] flex-col gap-1.5 sm:max-w-xs">
+      <div className="flex flex-wrap gap-1.5">
+        {tags.map((tag) => (
+          <TagPill key={tag} tag={tag} />
+        ))}
+      </div>
+      {note && (
+        <p className="font-sans text-xs italic text-white/60 drop-shadow">{note}</p>
+      )}
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Per-item "played" tracking via IntersectionObserver
 // ---------------------------------------------------------------------------
@@ -717,6 +779,140 @@ function ChatBubbles({
 }
 
 // ---------------------------------------------------------------------------
+// Swipe-right-to-open gesture: tracks touch start/end X/Y, and fires when the
+// horizontal delta clears the threshold and is more horizontal than vertical.
+// ---------------------------------------------------------------------------
+
+function useSwipeRight(onSwipeRight: () => void, threshold = 90) {
+  const start = useRef<{ x: number; y: number } | null>(null)
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0]
+    start.current = { x: t.clientX, y: t.clientY }
+  }
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (!start.current) return
+    const t = e.changedTouches[0]
+    const dx = t.clientX - start.current.x
+    const dy = t.clientY - start.current.y
+    start.current = null
+    if (dx > threshold && Math.abs(dx) > Math.abs(dy)) {
+      onSwipeRight()
+    }
+  }
+
+  return { onTouchStart, onTouchEnd }
+}
+
+// ---------------------------------------------------------------------------
+// Slide-in full-story reader panel — slides in from the right edge, covering
+// the whole viewport. Dismiss via back button or swipe-left. Mirrors the
+// comment sheet's mount/animate/unmount lifecycle and transition timing.
+// ---------------------------------------------------------------------------
+
+function ReaderPanel({
+  open,
+  onClose,
+  title,
+  author,
+  paragraphs,
+}: {
+  open: boolean
+  onClose: () => void
+  title: string
+  author: Author
+  paragraphs: string[]
+}) {
+  const [mounted, setMounted] = useState(false)
+  const [shown, setShown] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setMounted(true)
+      const raf = requestAnimationFrame(() => setShown(true))
+      return () => cancelAnimationFrame(raf)
+    }
+    setShown(false)
+    const timer = window.setTimeout(() => setMounted(false), 300)
+    return () => window.clearTimeout(timer)
+  }, [open])
+
+  // Swipe-left-to-close: mirrors the card's swipe-right-to-open threshold logic.
+  const startRef = useRef<{ x: number; y: number } | null>(null)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    startRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+  }
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!startRef.current) return
+    const t = e.changedTouches[0]
+    const dx = t.clientX - startRef.current.x
+    const dy = t.clientY - startRef.current.y
+    startRef.current = null
+    if (dx < -90 && Math.abs(dx) > Math.abs(dy)) {
+      onClose()
+    }
+  }
+
+  if (!mounted) return null
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col bg-[#141419] text-white transition-transform duration-300 ease-out"
+      style={{ transform: shown ? 'translateX(0)' : 'translateX(100%)' }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      <div className="flex items-center gap-3 border-b border-white/10 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-full p-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+          aria-label="Back to feed"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+        <div className="min-w-0">
+          <div className="truncate font-serif text-base font-semibold text-white">{title}</div>
+          <div className="font-sans text-xs text-white/50">@{author.handle}</div>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="mx-auto flex max-w-md flex-col gap-4">
+          {paragraphs.map((p, i) => (
+            <p key={i} className="font-serif text-lg leading-relaxed text-white/90">
+              {p}
+            </p>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const LOREM_EXTRA = [
+  'Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.',
+  'Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt.',
+  'Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem.',
+]
+
+const OMEGA_EXTRA = [
+  'The hallway outside the practice room was always colder than the rest of the building, like the company saved its heating budget for anywhere a camera might be. Jaehyun didn\'t mind. It meant fewer people lingered, and lately fewer people lingering was exactly what he wanted.',
+  'Minhyuk found him there a little after midnight, sitting against the wall with his knees drawn up, phone dark in his lap. He didn\'t ask what was wrong. He just sat down close enough that their shoulders touched, and waited, the way he always did, for Jaehyun to decide when he was ready to talk.',
+  '"You\'re going to say it\'s nothing," Minhyuk said eventually, not quite a question.\n"It\'s nothing," Jaehyun said, and then, because Minhyuk kept waiting anyway: "I keep thinking about how many people are going to hear this song and think they know us."\nMinhyuk considered that for a moment. "Let them think what they want. I know the difference."',
+]
+
+/** Builds the reader's extended paragraphs for a feed item from its existing card text. */
+function readerParagraphsFor(item: FeedItem, isFollowing: boolean): string[] {
+  const extra = isFollowing ? OMEGA_EXTRA : LOREM_EXTRA
+  if (item.type === 'drabble') return [item.text, ...extra.slice(0, 2)]
+  if (item.type === 'longform') return [item.intro, ...extra]
+  return [
+    `A longer look inside "${item.title}": ${item.messages.map((m) => m.text).join(' ')}`,
+    ...extra.slice(0, 2),
+  ]
+}
+
+// ---------------------------------------------------------------------------
 // The three card types
 // ---------------------------------------------------------------------------
 
@@ -725,11 +921,15 @@ function CardChrome({
   bg,
   author,
   badge,
+  tags,
+  note,
 }: {
   children: React.ReactNode
   bg: string
   author: Author
   badge: React.ReactNode
+  tags: string[]
+  note?: string
 }) {
   return (
     <div
@@ -743,6 +943,7 @@ function CardChrome({
       </div>
       <div className="absolute bottom-24 left-6 z-20 sm:bottom-8 sm:left-10">
         <AuthorRow author={author} />
+        <AuthorMeta tags={tags} note={note} />
       </div>
     </div>
   )
@@ -757,16 +958,20 @@ function useCardEngagement() {
   return { liked, toggleLike, likeOnDoubleTap, commentsOpen, setCommentsOpen }
 }
 
-function DrabbleCard({ item }: { item: DrabbleItem }) {
+function DrabbleCard({ item, isFollowing }: { item: DrabbleItem; isFollowing: boolean }) {
   const { ref, played } = useInViewOnce()
   const { liked, toggleLike, likeOnDoubleTap, commentsOpen, setCommentsOpen } = useCardEngagement()
+  const [readerOpen, setReaderOpen] = useState(false)
+  const swipe = useSwipeRight(() => setReaderOpen(true))
   return (
-    <div ref={ref} className="relative h-full w-full">
+    <div ref={ref} className="relative h-full w-full" onTouchStart={swipe.onTouchStart} onTouchEnd={swipe.onTouchEnd}>
       <DoubleTapLike onDoubleTap={likeOnDoubleTap}>
         <CardChrome
           bg={`linear-gradient(160deg, ${item.author.color}dd, #0b0b12)`}
           author={item.author}
           badge={<TypeBadge>Drabble</TypeBadge>}
+          tags={item.tags}
+          note={item.note}
         >
           <h2 className="font-serif text-2xl text-white drop-shadow sm:text-3xl">{item.title}</h2>
           <TypedText
@@ -785,20 +990,31 @@ function DrabbleCard({ item }: { item: DrabbleItem }) {
         onOpenComments={() => setCommentsOpen(true)}
       />
       <CommentSheet open={commentsOpen} onClose={() => setCommentsOpen(false)} count={item.comments} />
+      <ReaderPanel
+        open={readerOpen}
+        onClose={() => setReaderOpen(false)}
+        title={item.title}
+        author={item.author}
+        paragraphs={readerParagraphsFor(item, isFollowing)}
+      />
     </div>
   )
 }
 
-function LongformCard({ item }: { item: LongformItem }) {
+function LongformCard({ item, isFollowing }: { item: LongformItem; isFollowing: boolean }) {
   const { ref, played } = useInViewOnce()
   const { liked, toggleLike, likeOnDoubleTap, commentsOpen, setCommentsOpen } = useCardEngagement()
+  const [readerOpen, setReaderOpen] = useState(false)
+  const swipe = useSwipeRight(() => setReaderOpen(true))
   return (
-    <div ref={ref} className="relative h-full w-full">
+    <div ref={ref} className="relative h-full w-full" onTouchStart={swipe.onTouchStart} onTouchEnd={swipe.onTouchEnd}>
       <DoubleTapLike onDoubleTap={likeOnDoubleTap}>
         <CardChrome
           bg={`linear-gradient(160deg, ${item.author.color}dd, #0b0b12)`}
           author={item.author}
           badge={<TypeBadge>{item.title}</TypeBadge>}
+          tags={item.tags}
+          note={item.note}
         >
           <TypedText
             text={item.intro}
@@ -810,7 +1026,7 @@ function LongformCard({ item }: { item: LongformItem }) {
             type="button"
             onClick={(e) => {
               e.stopPropagation()
-              console.log('read more tapped (inert)')
+              setReaderOpen(true)
             }}
             className={cn(
               'pointer-events-auto mt-1 w-fit rounded-full bg-white px-4 py-2 font-sans text-sm font-semibold text-ink shadow-lg transition-all duration-500',
@@ -832,15 +1048,24 @@ function LongformCard({ item }: { item: LongformItem }) {
         onOpenComments={() => setCommentsOpen(true)}
       />
       <CommentSheet open={commentsOpen} onClose={() => setCommentsOpen(false)} count={item.comments} />
+      <ReaderPanel
+        open={readerOpen}
+        onClose={() => setReaderOpen(false)}
+        title={item.title}
+        author={item.author}
+        paragraphs={readerParagraphsFor(item, isFollowing)}
+      />
     </div>
   )
 }
 
-function ChatCard({ item }: { item: ChatItem }) {
+function ChatCard({ item, isFollowing }: { item: ChatItem; isFollowing: boolean }) {
   const { ref, played } = useInViewOnce()
   const { liked, toggleLike, likeOnDoubleTap, commentsOpen, setCommentsOpen } = useCardEngagement()
+  const [readerOpen, setReaderOpen] = useState(false)
+  const swipe = useSwipeRight(() => setReaderOpen(true))
   return (
-    <div ref={ref} className="relative h-full w-full">
+    <div ref={ref} className="relative h-full w-full" onTouchStart={swipe.onTouchStart} onTouchEnd={swipe.onTouchEnd}>
       <DoubleTapLike onDoubleTap={likeOnDoubleTap}>
         <div
           className="relative flex h-full w-full flex-col justify-center overflow-hidden px-5 py-20 sm:px-10"
@@ -853,6 +1078,7 @@ function ChatCard({ item }: { item: ChatItem }) {
           </div>
           <div className="absolute bottom-24 left-5 z-20 sm:bottom-8 sm:left-10">
             <AuthorRow author={item.author} />
+            <AuthorMeta tags={item.tags} note={item.note} />
           </div>
         </div>
       </DoubleTapLike>
@@ -864,6 +1090,13 @@ function ChatCard({ item }: { item: ChatItem }) {
         onOpenComments={() => setCommentsOpen(true)}
       />
       <CommentSheet open={commentsOpen} onClose={() => setCommentsOpen(false)} count={item.comments} />
+      <ReaderPanel
+        open={readerOpen}
+        onClose={() => setReaderOpen(false)}
+        title={item.title}
+        author={item.author}
+        paragraphs={readerParagraphsFor(item, isFollowing)}
+      />
     </div>
   )
 }
@@ -876,7 +1109,7 @@ type FeedTab = 'forYou' | 'following'
 
 function FeedTabs({ tab, onChange }: { tab: FeedTab; onChange: (tab: FeedTab) => void }) {
   return (
-    <div className="pointer-events-auto absolute left-1/2 top-4 z-30 -translate-x-1/2">
+    <div className="pointer-events-auto absolute left-1/2 top-16 z-30 -translate-x-1/2">
       <div className="flex items-center gap-1 rounded-full bg-white/10 p-1 backdrop-blur-md">
         {(
           [
@@ -904,7 +1137,8 @@ function FeedTabs({ tab, onChange }: { tab: FeedTab; onChange: (tab: FeedTab) =>
 export default function ReelsFeed() {
   const [tab, setTab] = useState<FeedTab>('forYou')
   const scrollRef = useRef<HTMLDivElement | null>(null)
-  const items = tab === 'forYou' ? FEED : FOLLOWING
+  const isFollowing = tab === 'following'
+  const items = isFollowing ? FOLLOWING : FEED
 
   const handleTabChange = (next: FeedTab) => {
     setTab(next)
@@ -921,9 +1155,9 @@ export default function ReelsFeed() {
       >
         {items.map((item) => (
           <section key={item.id} className="relative h-screen w-full snap-start" style={{ height: '100dvh' }}>
-            {item.type === 'drabble' && <DrabbleCard item={item} />}
-            {item.type === 'longform' && <LongformCard item={item} />}
-            {item.type === 'chat' && <ChatCard item={item} />}
+            {item.type === 'drabble' && <DrabbleCard item={item} isFollowing={isFollowing} />}
+            {item.type === 'longform' && <LongformCard item={item} isFollowing={isFollowing} />}
+            {item.type === 'chat' && <ChatCard item={item} isFollowing={isFollowing} />}
           </section>
         ))}
       </div>

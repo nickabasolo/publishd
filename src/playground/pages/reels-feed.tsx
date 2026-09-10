@@ -198,6 +198,131 @@ const FEED: FeedItem[] = [
   },
 ]
 
+const FOLLOWING_AUTHORS: Author[] = [
+  { name: 'Haeun Song', handle: 'haeunwrites', color: '#d94f8c' },
+  { name: 'Callum Reyes', handle: 'callumr', color: '#3a8de0' },
+  { name: 'Mireille Tanaka', handle: 'mirtee', color: '#7c5cff' },
+  { name: 'Jonah Ackerman', handle: 'jonahwrites', color: '#2f9e6f' },
+]
+
+const FOLLOWING: FeedItem[] = [
+  {
+    id: 'fd1',
+    type: 'drabble',
+    author: FOLLOWING_AUTHORS[0],
+    title: 'Green Room, 11:58PM',
+    text: 'Sera counts the mic checks under her breath, three fingers tapping her knee — the same tic she\'s had since trainee days. Beside her, Rin passes a water bottle without being asked. "You\'re going to be fine," Rin says, not looking up from her own reflection. "You always say that." "I\'m always right." Two minutes to stage.',
+    likes: 764,
+    comments: 58,
+  },
+  {
+    id: 'fc1',
+    type: 'chat',
+    author: FOLLOWING_AUTHORS[1],
+    title: 'dorm group chat (MOONFRAME)',
+    participants: { a: { name: 'Yuna', color: '#e0623a' }, b: { name: 'Dahee', color: '#c98a1f' } },
+    messages: [
+      { speaker: 'a', text: 'who ate my leftover tteokbokki i am not joking' },
+      { speaker: 'b', text: 'it was sitting out for two days yuna. it was a public health decision' },
+      { speaker: 'a', text: 'a PUBLIC. HEALTH. DECISION.' },
+      { speaker: 'b', text: 'i\'ll buy you a new one before the fan sign, i promise' },
+      { speaker: 'a', text: 'fine. but i\'m telling the manager it was you if he asks about the fridge smell' },
+      { speaker: 'b', text: 'that\'s so unfair and also completely valid' },
+    ],
+    likes: 1120,
+    comments: 143,
+  },
+  {
+    id: 'fl1',
+    type: 'longform',
+    author: FOLLOWING_AUTHORS[2],
+    title: 'Comeback Week',
+    intro:
+      'The countdown clock in the practice room read six days, and Taeo still hadn\'t landed the last eight-count clean. Jinho watched from the mirror instead of the door, which was how he always knew something was wrong before Taeo said a word. "You\'re rushing the turn because you\'re scared of the formation change," Jinho said. "I know my own choreo." "Then stop fighting it." Six days. Five, after tonight.',
+    likes: 1389,
+    comments: 97,
+  },
+  {
+    id: 'fd2',
+    type: 'drabble',
+    author: FOLLOWING_AUTHORS[3],
+    title: 'Trainee Room 4B',
+    text: 'Before ONYX ROAD had a name, they had a room with bad lighting and a mirror wall that lied about how far they\'d come. Baek learned harmony parts by humming them into his pillow at 2AM so the RA wouldn\'t hear. Jinho learned to sleep sitting up. Neither of them thought they\'d debut together. Neither of them was wrong to hope anyway.',
+    likes: 592,
+    comments: 44,
+  },
+  {
+    id: 'fc2',
+    type: 'chat',
+    author: FOLLOWING_AUTHORS[0],
+    title: 'texting during soundcheck',
+    participants: { a: { name: 'Dahee', color: '#d94f8c' }, b: { name: 'Sera', color: '#2f9e6f' } },
+    messages: [
+      { speaker: 'b', text: 'did you see the setlist change. we\'re opening with the b-side now' },
+      { speaker: 'a', text: 'WHAT. that\'s the one with my solo run i haven\'t warmed up for' },
+      { speaker: 'b', text: 'breathe. you\'ve hit that note in your sleep, literally, i\'ve heard you' },
+      { speaker: 'a', text: 'that is deeply embarrassing information and also comforting somehow' },
+      { speaker: 'b', text: 'that\'s kind of our whole dynamic though' },
+    ],
+    likes: 848,
+    comments: 71,
+  },
+  {
+    id: 'fl2',
+    type: 'longform',
+    author: FOLLOWING_AUTHORS[1],
+    title: 'The Understudy Slot',
+    intro:
+      'Rin had been the backup center for two full eras before anyone outside the company knew her name. She\'d memorized every formation from every angle, just in case, and never once let it show on her face when "just in case" didn\'t happen. Then Sera turned her ankle three days before the award show, and the choreographer looked straight at Rin and said the sentence she\'d rehearsed hearing for years.',
+    likes: 1204,
+    comments: 88,
+  },
+  {
+    id: 'fd3',
+    type: 'drabble',
+    author: FOLLOWING_AUTHORS[2],
+    title: 'Fan Sign Nerves',
+    text: 'Yuna signed the same photocard for the ninetieth time and still meant it every time, even when her wrist ached and the marker was running dry. A fan slid a handwritten note across the table instead of asking a question. Yuna read three words of it, looked up, and had to blink hard before she could smile again.',
+    likes: 671,
+    comments: 52,
+  },
+  {
+    id: 'fl3',
+    type: 'longform',
+    author: FOLLOWING_AUTHORS[3],
+    title: 'Encore',
+    intro:
+      'Nobody had told LIONHEART the tour was ending after this city, but Baek could feel it in the way the crew kept hugging them a second too long between sets. On the last chorus of the encore, Taeo grabbed his hand mid-choreo — half a beat off the count, completely against the formation — and neither of them let go until the lights actually came up.',
+    likes: 1502,
+    comments: 121,
+  },
+  {
+    id: 'fc3',
+    type: 'chat',
+    author: FOLLOWING_AUTHORS[3],
+    title: 'airport chat, 4am flight',
+    participants: { a: { name: 'Baek', color: '#7c5cff' }, b: { name: 'Jinho', color: '#e0a23a' } },
+    messages: [
+      { speaker: 'a', text: 'gate change again. we\'re at C22 now' },
+      { speaker: 'b', text: 'of course we are. i just bought coffee at the other end of the terminal' },
+      { speaker: 'a', text: 'bring it anyway. i\'m not carrying my own bag AND being caffeine-deprived today' },
+      { speaker: 'b', text: 'the manager is going to leave us both here' },
+      { speaker: 'a', text: 'he loves us too much for that. probably' },
+    ],
+    likes: 933,
+    comments: 65,
+  },
+  {
+    id: 'fd4',
+    type: 'drabble',
+    author: FOLLOWING_AUTHORS[1],
+    title: 'Practice Room, After Hours',
+    text: 'Mireille kept the lights low and the music lower, running the bridge one more time even though everyone else had gone back to the dorm. She wasn\'t chasing perfect. She was chasing the exact half-second where the choreo stopped feeling like counting and started feeling like flying. Tonight, on the eleventh try, she found it — and immediately wanted to do it again.',
+    likes: 540,
+    comments: 39,
+  },
+]
+
 // ---------------------------------------------------------------------------
 // Shared bits
 // ---------------------------------------------------------------------------
@@ -322,7 +447,7 @@ function DoubleTapLike({
   return (
     <div className="absolute inset-0 z-10" onClick={handleTap}>
       {children}
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+      <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
         <Heart
           key={burstKey}
           className={cn(
@@ -747,17 +872,54 @@ function ChatCard({ item }: { item: ChatItem }) {
 // Page
 // ---------------------------------------------------------------------------
 
+type FeedTab = 'forYou' | 'following'
+
+function FeedTabs({ tab, onChange }: { tab: FeedTab; onChange: (tab: FeedTab) => void }) {
+  return (
+    <div className="pointer-events-auto absolute left-1/2 top-4 z-30 -translate-x-1/2">
+      <div className="flex items-center gap-1 rounded-full bg-white/10 p-1 backdrop-blur-md">
+        {(
+          [
+            { key: 'forYou', label: 'For You' },
+            { key: 'following', label: 'Following' },
+          ] as const
+        ).map((opt) => (
+          <button
+            key={opt.key}
+            type="button"
+            onClick={() => onChange(opt.key)}
+            className={cn(
+              'rounded-full px-4 py-1.5 font-sans text-sm font-semibold tracking-wide transition-colors',
+              tab === opt.key ? 'bg-white text-ink' : 'text-white/80 hover:text-white',
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function ReelsFeed() {
+  const [tab, setTab] = useState<FeedTab>('forYou')
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const items = tab === 'forYou' ? FEED : FOLLOWING
+
+  const handleTabChange = (next: FeedTab) => {
+    setTab(next)
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'auto' })
+  }
+
   return (
     <div className="fixed inset-0 bg-black">
-      <div className="pointer-events-none absolute left-1/2 top-4 z-30 -translate-x-1/2 font-sans text-sm font-semibold tracking-wide text-white/90">
-        For You — prototype
-      </div>
+      <FeedTabs tab={tab} onChange={handleTabChange} />
       <div
+        ref={scrollRef}
         className="h-full w-full snap-y snap-mandatory overflow-y-scroll scroll-smooth"
         style={{ height: '100dvh' }}
       >
-        {FEED.map((item) => (
+        {items.map((item) => (
           <section key={item.id} className="relative h-screen w-full snap-start" style={{ height: '100dvh' }}>
             {item.type === 'drabble' && <DrabbleCard item={item} />}
             {item.type === 'longform' && <LongformCard item={item} />}

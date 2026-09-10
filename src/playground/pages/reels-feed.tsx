@@ -1,7 +1,7 @@
 // DESIGN EXPLORATION — TikTok/Reels-style vertical snap feed for the home page.
 // Fully self-contained, hardcoded Lorem Ipsum data. Not wired to any real data
 // layer, no navigation to real routes. Playground page only — throwaway.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Heart, MessageCircle, Share2, Bookmark, X, ChevronLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -589,10 +589,20 @@ function CommentSheet({
   )
 }
 
-function AuthorRow({ author }: { author: Author }) {
+function AuthorRow({ author, onAvatarClick }: { author: Author; onAvatarClick?: () => void }) {
   return (
     <div className="flex items-center gap-2">
-      <MiniAvatar name={author.name} color={author.color} size={36} />
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          onAvatarClick?.()
+        }}
+        className="rounded-full transition-transform active:scale-90"
+        aria-label={`View ${author.name}'s profile`}
+      >
+        <MiniAvatar name={author.name} color={author.color} size={36} />
+      </button>
       <div className="leading-tight">
         <div className="font-sans text-sm font-semibold text-white drop-shadow">
           {author.name}
@@ -718,17 +728,24 @@ function ChatBubbles({
   messages,
   participants,
   play,
+  instant = false,
 }: {
   messages: ChatItem['messages']
   participants: ChatItem['participants']
   play: boolean
+  /** Skip the typing-indicator stagger and show every bubble right away — used for carousel slides after the first. */
+  instant?: boolean
 }) {
   const STAGGER = 320
   const TYPING_LEAD = 220
-  const [visibleCount, setVisibleCount] = useState(0)
+  const [visibleCount, setVisibleCount] = useState(instant ? messages.length : 0)
   const [typingIndex, setTypingIndex] = useState<number | null>(null)
 
   useEffect(() => {
+    if (instant) {
+      setVisibleCount(messages.length)
+      return
+    }
     if (!play) return
     const timers: ReturnType<typeof setTimeout>[] = []
     messages.forEach((_, i) => {
@@ -744,7 +761,7 @@ function ChatBubbles({
     })
     return () => timers.forEach(clearTimeout)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [play])
+  }, [play, instant])
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -779,11 +796,15 @@ function ChatBubbles({
 }
 
 // ---------------------------------------------------------------------------
-// Swipe-right-to-open gesture: tracks touch start/end X/Y, and fires when the
-// horizontal delta clears the threshold and is more horizontal than vertical.
+// Carousel paging gesture: tracks touch start/end X/Y on the card itself and
+// pages through that item's own slides — Instagram-carousel style. Convention
+// (matches the iOS back-gesture / standard reading-app pattern): swipe LEFT
+// advances to the next slide, swipe RIGHT retreats to the previous one. Index
+// is clamped to the valid slide range.
 // ---------------------------------------------------------------------------
 
-function useSwipeRight(onSwipeRight: () => void, threshold = 90) {
+function useHorizontalPager(count: number, threshold = 70) {
+  const [index, setIndex] = useState(0)
   const start = useRef<{ x: number; y: number } | null>(null)
 
   const onTouchStart = (e: React.TouchEvent) => {
@@ -797,18 +818,96 @@ function useSwipeRight(onSwipeRight: () => void, threshold = 90) {
     const dx = t.clientX - start.current.x
     const dy = t.clientY - start.current.y
     start.current = null
-    if (dx > threshold && Math.abs(dx) > Math.abs(dy)) {
-      onSwipeRight()
+    if (Math.abs(dx) <= Math.abs(dy)) return
+    if (dx < -threshold) {
+      // swipe left -> forward / next slide
+      setIndex((i) => Math.min(i + 1, Math.max(count - 1, 0)))
+    } else if (dx > threshold) {
+      // swipe right -> back / previous slide
+      setIndex((i) => Math.max(i - 1, 0))
     }
   }
 
-  return { onTouchStart, onTouchEnd }
+  return { index, setIndex, onTouchStart, onTouchEnd }
+}
+
+/** Small Instagram-style dot pagination, filled dot = active slide. Bottom-center of the card content area. */
+function DotIndicators({ count, index }: { count: number; index: number }) {
+  if (count <= 1) return null
+  return (
+    <div className="pointer-events-none absolute bottom-32 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5">
+      {Array.from({ length: count }).map((_, i) => (
+        <span
+          key={i}
+          className={cn(
+            'h-1.5 rounded-full transition-all duration-300',
+            i === index ? 'w-4 bg-white' : 'w-1.5 bg-white/40',
+          )}
+        />
+      ))}
+    </div>
+  )
+}
+
+/** "Read [full title]" pill — only shown on the last slide of an item long enough to warrant it. */
+function ReadMorePill({ label, onClick, visible }: { label: string; onClick: () => void; visible: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
+      className={cn(
+        'pointer-events-auto mt-1 w-fit rounded-full bg-white px-4 py-2 font-sans text-sm font-semibold text-ink shadow-lg transition-all duration-500',
+        visible ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0',
+      )}
+      style={{ transitionDelay: visible ? '400ms' : '0ms' }}
+    >
+      {label}
+    </button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Carousel slide-splitting — chunks a drabble/longform's text into 2-3
+// sequential slides, or a chat's message list into slides of ~2 messages.
+// ---------------------------------------------------------------------------
+
+function splitSentences(text: string): string[] {
+  const matches = text.match(/[^.!?]+[.!?]+(\s+|$)/g)
+  return matches ? matches.map((s) => s.trim()).filter(Boolean) : [text]
+}
+
+/** Groups sentences into 1-3 slides, roughly a sentence or two per slide. Short text stays as one slide. */
+function chunkText(text: string, maxSlides = 3): string[] {
+  const sentences = splitSentences(text)
+  if (sentences.length <= 2) return [text]
+  const slideCount = Math.min(maxSlides, Math.ceil(sentences.length / 2))
+  const perSlide = Math.ceil(sentences.length / slideCount)
+  const slides: string[] = []
+  for (let i = 0; i < sentences.length; i += perSlide) {
+    slides.push(sentences.slice(i, i + perSlide).join(' '))
+  }
+  return slides
+}
+
+/** Groups a chat's messages into slides of `perSlide` messages each. */
+function chunkMessages(messages: ChatItem['messages'], perSlide = 2): ChatItem['messages'][] {
+  if (messages.length <= perSlide) return [messages]
+  const slides: ChatItem['messages'][] = []
+  for (let i = 0; i < messages.length; i += perSlide) {
+    slides.push(messages.slice(i, i + perSlide))
+  }
+  return slides
 }
 
 // ---------------------------------------------------------------------------
 // Slide-in full-story reader panel — slides in from the right edge, covering
-// the whole viewport. Dismiss via back button or swipe-left. Mirrors the
-// comment sheet's mount/animate/unmount lifecycle and transition timing.
+// the whole viewport. Opens only via an explicit "Read more" tap (the card's
+// horizontal swipe is claimed by carousel paging). Dismiss via back button or
+// swipe-RIGHT (standard back-gesture convention). Mirrors the comment sheet's
+// mount/animate/unmount lifecycle and transition timing.
 // ---------------------------------------------------------------------------
 
 function ReaderPanel({
@@ -838,7 +937,8 @@ function ReaderPanel({
     return () => window.clearTimeout(timer)
   }, [open])
 
-  // Swipe-left-to-close: mirrors the card's swipe-right-to-open threshold logic.
+  // Swipe-RIGHT-to-close — standard back-gesture convention (iOS back-swipe /
+  // most reading apps): right = back/dismiss.
   const startRef = useRef<{ x: number; y: number } | null>(null)
   const handleTouchStart = (e: React.TouchEvent) => {
     startRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
@@ -849,7 +949,7 @@ function ReaderPanel({
     const dx = t.clientX - startRef.current.x
     const dy = t.clientY - startRef.current.y
     startRef.current = null
-    if (dx < -90 && Math.abs(dx) > Math.abs(dy)) {
+    if (dx > 90 && Math.abs(dx) > Math.abs(dy)) {
       onClose()
     }
   }
@@ -883,6 +983,124 @@ function ReaderPanel({
               {p}
             </p>
           ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Slide-in author profile panel — same slide-in-from-right pattern/transition
+// as ReaderPanel for visual consistency. Purely decorative: avatar, name,
+// handle, a fake bio line, and 3-5 fake works (pulled from real feed items by
+// this author when there are enough, padded with fabricated titles otherwise).
+// ---------------------------------------------------------------------------
+
+const FAKE_BIOS = [
+  "writes too fast, edits too slow. always taking requests.",
+  'professional overthinker. fic is just organized crying.',
+  'college au enthusiast, slow burn apologist.',
+  'here for the pining. always here for the pining.',
+  "unbeta'd and proud of it.",
+]
+
+const FAKE_WORK_TITLES = ['Static Bloom', 'Borrowed Time', 'Paper Lanterns', 'The Quiet Hour', 'Nothing But the Radio']
+
+function worksFor(author: Author): { title: string; type: FeedItem['type']; likes: number }[] {
+  const all = [...FEED, ...FOLLOWING]
+  const own = all
+    .filter((i) => i.author.handle === author.handle)
+    .map((i) => ({ title: i.title, type: i.type, likes: i.likes }))
+  if (own.length >= 3) return own.slice(0, 5)
+  const types: FeedItem['type'][] = ['drabble', 'longform', 'chat']
+  const padding = FAKE_WORK_TITLES.slice(0, 5 - own.length).map((title, i) => ({
+    title,
+    type: types[i % types.length],
+    likes: 120 + i * 87,
+  }))
+  return [...own, ...padding]
+}
+
+function ProfilePanel({ open, onClose, author }: { open: boolean; onClose: () => void; author: Author | null }) {
+  const [mounted, setMounted] = useState(false)
+  const [shown, setShown] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setMounted(true)
+      const raf = requestAnimationFrame(() => setShown(true))
+      return () => cancelAnimationFrame(raf)
+    }
+    setShown(false)
+    const timer = window.setTimeout(() => setMounted(false), 300)
+    return () => window.clearTimeout(timer)
+  }, [open])
+
+  // Swipe-right-to-close, same convention as ReaderPanel.
+  const startRef = useRef<{ x: number; y: number } | null>(null)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    startRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+  }
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!startRef.current) return
+    const t = e.changedTouches[0]
+    const dx = t.clientX - startRef.current.x
+    const dy = t.clientY - startRef.current.y
+    startRef.current = null
+    if (dx > 90 && Math.abs(dx) > Math.abs(dy)) {
+      onClose()
+    }
+  }
+
+  if (!mounted || !author) return null
+  const bio = FAKE_BIOS[author.handle.length % FAKE_BIOS.length]
+  const works = worksFor(author)
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col bg-[#141419] text-white transition-transform duration-300 ease-out"
+      style={{ transform: shown ? 'translateX(0)' : 'translateX(100%)' }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      <div className="flex items-center gap-3 border-b border-white/10 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-full p-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+          aria-label="Back to feed"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+        <span className="font-sans text-sm font-semibold text-white">Profile</span>
+      </div>
+      <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="mx-auto flex max-w-md flex-col gap-6">
+          <div className="flex items-center gap-4">
+            <MiniAvatar name={author.name} color={author.color} size={72} />
+            <div>
+              <div className="font-serif text-xl font-semibold text-white">{author.name}</div>
+              <div className="font-sans text-sm text-white/50">@{author.handle}</div>
+            </div>
+          </div>
+          <p className="font-sans text-sm leading-relaxed text-white/80">{bio}</p>
+          <div className="flex flex-col gap-3">
+            <span className="font-sans text-xs font-semibold uppercase tracking-wide text-white/40">Works</span>
+            {works.map((w, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between gap-3 rounded-xl bg-white/5 px-3.5 py-3"
+              >
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className="truncate font-serif text-[15px] text-white">{w.title}</span>
+                  <TypeBadge>{w.type}</TypeBadge>
+                </div>
+                <div className="flex shrink-0 items-center gap-1 text-white/60">
+                  <Heart className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  <span className="font-sans text-xs">{fmtCount(w.likes)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -923,6 +1141,7 @@ function CardChrome({
   badge,
   tags,
   note,
+  onAvatarClick,
 }: {
   children: React.ReactNode
   bg: string
@@ -930,6 +1149,7 @@ function CardChrome({
   badge: React.ReactNode
   tags: string[]
   note?: string
+  onAvatarClick?: () => void
 }) {
   return (
     <div
@@ -942,7 +1162,7 @@ function CardChrome({
         {children}
       </div>
       <div className="absolute bottom-24 left-6 z-20 sm:bottom-8 sm:left-10">
-        <AuthorRow author={author} />
+        <AuthorRow author={author} onAvatarClick={onAvatarClick} />
         <AuthorMeta tags={tags} note={note} />
       </div>
     </div>
@@ -958,13 +1178,29 @@ function useCardEngagement() {
   return { liked, toggleLike, likeOnDoubleTap, commentsOpen, setCommentsOpen }
 }
 
-function DrabbleCard({ item, isFollowing }: { item: DrabbleItem; isFollowing: boolean }) {
+function DrabbleCard({
+  item,
+  isFollowing,
+  onOpenProfile,
+}: {
+  item: DrabbleItem
+  isFollowing: boolean
+  onOpenProfile: (author: Author) => void
+}) {
   const { ref, played } = useInViewOnce()
   const { liked, toggleLike, likeOnDoubleTap, commentsOpen, setCommentsOpen } = useCardEngagement()
   const [readerOpen, setReaderOpen] = useState(false)
-  const swipe = useSwipeRight(() => setReaderOpen(true))
+  const slides = useMemo(() => chunkText(item.text), [item.text])
+  const pager = useHorizontalPager(slides.length)
+  const showReadMore = slides.length >= 3
+  const isLastSlide = pager.index === slides.length - 1
   return (
-    <div ref={ref} className="relative h-full w-full" onTouchStart={swipe.onTouchStart} onTouchEnd={swipe.onTouchEnd}>
+    <div
+      ref={ref}
+      className="relative h-full w-full"
+      onTouchStart={pager.onTouchStart}
+      onTouchEnd={pager.onTouchEnd}
+    >
       <DoubleTapLike onDoubleTap={likeOnDoubleTap}>
         <CardChrome
           bg={`linear-gradient(160deg, ${item.author.color}dd, #0b0b12)`}
@@ -972,16 +1208,41 @@ function DrabbleCard({ item, isFollowing }: { item: DrabbleItem; isFollowing: bo
           badge={<TypeBadge>Drabble</TypeBadge>}
           tags={item.tags}
           note={item.note}
+          onAvatarClick={() => onOpenProfile(item.author)}
         >
           <h2 className="font-serif text-2xl text-white drop-shadow sm:text-3xl">{item.title}</h2>
-          <TypedText
-            text={item.text}
-            play={played}
-            className="font-serif text-lg leading-relaxed text-white/95 drop-shadow sm:text-xl"
-            totalMs={550}
-          />
+          <div className="overflow-hidden">
+            <div
+              className="flex transition-transform duration-300 ease-out"
+              style={{ transform: `translateX(-${pager.index * 100}%)` }}
+            >
+              {slides.map((slide, i) =>
+                i === 0 ? (
+                  <div key={i} className="w-full shrink-0">
+                    <TypedText
+                      text={slide}
+                      play={played}
+                      className="font-serif text-lg leading-relaxed text-white/95 drop-shadow sm:text-xl"
+                      totalMs={550}
+                    />
+                  </div>
+                ) : (
+                  <p
+                    key={i}
+                    className="w-full shrink-0 font-serif text-lg leading-relaxed text-white/95 drop-shadow transition-opacity duration-300 sm:text-xl"
+                  >
+                    {slide}
+                  </p>
+                ),
+              )}
+            </div>
+          </div>
+          {showReadMore && isLastSlide && (
+            <ReadMorePill label={`Read "${item.title}"`} onClick={() => setReaderOpen(true)} visible={played} />
+          )}
         </CardChrome>
       </DoubleTapLike>
+      <DotIndicators count={slides.length} index={pager.index} />
       <ActionRail
         likes={item.likes}
         comments={item.comments}
@@ -1001,13 +1262,28 @@ function DrabbleCard({ item, isFollowing }: { item: DrabbleItem; isFollowing: bo
   )
 }
 
-function LongformCard({ item, isFollowing }: { item: LongformItem; isFollowing: boolean }) {
+function LongformCard({
+  item,
+  isFollowing,
+  onOpenProfile,
+}: {
+  item: LongformItem
+  isFollowing: boolean
+  onOpenProfile: (author: Author) => void
+}) {
   const { ref, played } = useInViewOnce()
   const { liked, toggleLike, likeOnDoubleTap, commentsOpen, setCommentsOpen } = useCardEngagement()
   const [readerOpen, setReaderOpen] = useState(false)
-  const swipe = useSwipeRight(() => setReaderOpen(true))
+  const slides = useMemo(() => chunkText(item.intro), [item.intro])
+  const pager = useHorizontalPager(slides.length)
+  const isLastSlide = pager.index === slides.length - 1
   return (
-    <div ref={ref} className="relative h-full w-full" onTouchStart={swipe.onTouchStart} onTouchEnd={swipe.onTouchEnd}>
+    <div
+      ref={ref}
+      className="relative h-full w-full"
+      onTouchStart={pager.onTouchStart}
+      onTouchEnd={pager.onTouchEnd}
+    >
       <DoubleTapLike onDoubleTap={likeOnDoubleTap}>
         <CardChrome
           bg={`linear-gradient(160deg, ${item.author.color}dd, #0b0b12)`}
@@ -1015,31 +1291,42 @@ function LongformCard({ item, isFollowing }: { item: LongformItem; isFollowing: 
           badge={<TypeBadge>{item.title}</TypeBadge>}
           tags={item.tags}
           note={item.note}
+          onAvatarClick={() => onOpenProfile(item.author)}
         >
-          <TypedText
-            text={item.intro}
-            play={played}
-            className="font-serif text-lg leading-relaxed text-white/95 drop-shadow sm:text-xl"
-            totalMs={700}
-          />
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              setReaderOpen(true)
-            }}
-            className={cn(
-              'pointer-events-auto mt-1 w-fit rounded-full bg-white px-4 py-2 font-sans text-sm font-semibold text-ink shadow-lg transition-all duration-500',
-              played ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0',
-            )}
-            style={{ transitionDelay: played ? '650ms' : '0ms' }}
-          >
-            Read more →
-          </button>
+          <div className="overflow-hidden">
+            <div
+              className="flex transition-transform duration-300 ease-out"
+              style={{ transform: `translateX(-${pager.index * 100}%)` }}
+            >
+              {slides.map((slide, i) =>
+                i === 0 ? (
+                  <div key={i} className="w-full shrink-0">
+                    <TypedText
+                      text={slide}
+                      play={played}
+                      className="font-serif text-lg leading-relaxed text-white/95 drop-shadow sm:text-xl"
+                      totalMs={700}
+                    />
+                  </div>
+                ) : (
+                  <p
+                    key={i}
+                    className="w-full shrink-0 font-serif text-lg leading-relaxed text-white/95 drop-shadow transition-opacity duration-300 sm:text-xl"
+                  >
+                    {slide}
+                  </p>
+                ),
+              )}
+            </div>
+          </div>
+          {isLastSlide && (
+            <ReadMorePill label={`Read "${item.title}"`} onClick={() => setReaderOpen(true)} visible={played} />
+          )}
         </CardChrome>
       </DoubleTapLike>
       {/* fade-to-gradient hinting continued content */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/50 to-transparent" />
+      <DotIndicators count={slides.length} index={pager.index} />
       <ActionRail
         likes={item.likes}
         comments={item.comments}
@@ -1059,13 +1346,29 @@ function LongformCard({ item, isFollowing }: { item: LongformItem; isFollowing: 
   )
 }
 
-function ChatCard({ item, isFollowing }: { item: ChatItem; isFollowing: boolean }) {
+function ChatCard({
+  item,
+  isFollowing,
+  onOpenProfile,
+}: {
+  item: ChatItem
+  isFollowing: boolean
+  onOpenProfile: (author: Author) => void
+}) {
   const { ref, played } = useInViewOnce()
   const { liked, toggleLike, likeOnDoubleTap, commentsOpen, setCommentsOpen } = useCardEngagement()
   const [readerOpen, setReaderOpen] = useState(false)
-  const swipe = useSwipeRight(() => setReaderOpen(true))
+  const slides = useMemo(() => chunkMessages(item.messages), [item.messages])
+  const pager = useHorizontalPager(slides.length)
+  const showReadMore = slides.length >= 3
+  const isLastSlide = pager.index === slides.length - 1
   return (
-    <div ref={ref} className="relative h-full w-full" onTouchStart={swipe.onTouchStart} onTouchEnd={swipe.onTouchEnd}>
+    <div
+      ref={ref}
+      className="relative h-full w-full"
+      onTouchStart={pager.onTouchStart}
+      onTouchEnd={pager.onTouchEnd}
+    >
       <DoubleTapLike onDoubleTap={likeOnDoubleTap}>
         <div
           className="relative flex h-full w-full flex-col justify-center overflow-hidden px-5 py-20 sm:px-10"
@@ -1074,14 +1377,34 @@ function ChatCard({ item, isFollowing }: { item: ChatItem; isFollowing: boolean 
           <div className="absolute inset-0 bg-black/15" />
           <div className="relative z-10 mx-auto flex w-full max-w-md flex-col gap-4">
             <TypeBadge>Chat AU · {item.title}</TypeBadge>
-            <ChatBubbles messages={item.messages} participants={item.participants} play={played} />
+            <div className="overflow-hidden">
+              <div
+                className="flex transition-transform duration-300 ease-out"
+                style={{ transform: `translateX(-${pager.index * 100}%)` }}
+              >
+                {slides.map((slideMessages, i) => (
+                  <div key={i} className="w-full shrink-0 transition-opacity duration-300">
+                    <ChatBubbles
+                      messages={slideMessages}
+                      participants={item.participants}
+                      play={i === 0 && played}
+                      instant={i > 0}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+            {showReadMore && isLastSlide && (
+              <ReadMorePill label={`Read "${item.title}"`} onClick={() => setReaderOpen(true)} visible={played} />
+            )}
           </div>
           <div className="absolute bottom-24 left-5 z-20 sm:bottom-8 sm:left-10">
-            <AuthorRow author={item.author} />
+            <AuthorRow author={item.author} onAvatarClick={() => onOpenProfile(item.author)} />
             <AuthorMeta tags={item.tags} note={item.note} />
           </div>
         </div>
       </DoubleTapLike>
+      <DotIndicators count={slides.length} index={pager.index} />
       <ActionRail
         likes={item.likes}
         comments={item.comments}
@@ -1139,6 +1462,7 @@ export default function ReelsFeed() {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const isFollowing = tab === 'following'
   const items = isFollowing ? FOLLOWING : FEED
+  const [profileAuthor, setProfileAuthor] = useState<Author | null>(null)
 
   const handleTabChange = (next: FeedTab) => {
     setTab(next)
@@ -1155,12 +1479,19 @@ export default function ReelsFeed() {
       >
         {items.map((item) => (
           <section key={item.id} className="relative h-screen w-full snap-start" style={{ height: '100dvh' }}>
-            {item.type === 'drabble' && <DrabbleCard item={item} isFollowing={isFollowing} />}
-            {item.type === 'longform' && <LongformCard item={item} isFollowing={isFollowing} />}
-            {item.type === 'chat' && <ChatCard item={item} isFollowing={isFollowing} />}
+            {item.type === 'drabble' && (
+              <DrabbleCard item={item} isFollowing={isFollowing} onOpenProfile={setProfileAuthor} />
+            )}
+            {item.type === 'longform' && (
+              <LongformCard item={item} isFollowing={isFollowing} onOpenProfile={setProfileAuthor} />
+            )}
+            {item.type === 'chat' && (
+              <ChatCard item={item} isFollowing={isFollowing} onOpenProfile={setProfileAuthor} />
+            )}
           </section>
         ))}
       </div>
+      <ProfilePanel open={profileAuthor !== null} onClose={() => setProfileAuthor(null)} author={profileAuthor} />
     </div>
   )
 }

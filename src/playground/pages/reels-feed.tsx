@@ -2,7 +2,8 @@
 // Fully self-contained, hardcoded Lorem Ipsum data. Not wired to any real data
 // layer, no navigation to real routes. Playground page only — throwaway.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Heart, MessageCircle, Share2, Bookmark, X, ChevronLeft } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Heart, MessageCircle, Share2, Bookmark, X, ChevronLeft, Compass, Search, PenLine, Library, Bell } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
@@ -390,14 +391,6 @@ function fmtCount(n: number) {
   return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n)
 }
 
-function TypeBadge({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex w-fit items-center rounded-full bg-white/15 px-2.5 py-0.5 font-sans text-[11px] font-medium uppercase tracking-wide text-white backdrop-blur-sm">
-      {children}
-    </span>
-  )
-}
-
 function ActionRail({
   likes,
   comments,
@@ -615,23 +608,33 @@ function AuthorRow({ author, onAvatarClick }: { author: Author; onAvatarClick?: 
 
 function TagPill({ tag }: { tag: string }) {
   return (
-    <span className="inline-flex w-fit items-center rounded-full bg-white/10 px-2.5 py-0.5 font-sans text-[11px] font-medium text-white/80 backdrop-blur-sm">
+    <span className="inline-flex w-fit shrink-0 items-center rounded-full bg-white/10 px-2.5 py-0.5 font-sans text-[11px] font-medium text-white/80 backdrop-blur-sm">
       {tag}
     </span>
   )
 }
 
-/** Tag pills + optional author caption, rendered beneath the author chip on a card. */
+/**
+ * Tag pills + optional author caption, rendered beneath the author chip on a
+ * card. Tags stay on a single line: a simple heuristic (rather than precise
+ * per-render width measurement) always shows the first 3 tags and folds any
+ * remainder into a trailing "+N" pill, tuned to fit the card's max-width at
+ * typical mobile widths.
+ */
 function AuthorMeta({ tags, note }: { tags: string[]; note?: string }) {
+  const VISIBLE = 3
+  const shown = tags.slice(0, VISIBLE)
+  const hiddenCount = tags.length - shown.length
   return (
     <div className="mt-1.5 flex max-w-[220px] flex-col gap-1.5 sm:max-w-xs">
-      <div className="flex flex-wrap gap-1.5">
-        {tags.map((tag) => (
+      <div className="flex flex-nowrap items-center gap-1.5 overflow-hidden">
+        {shown.map((tag) => (
           <TagPill key={tag} tag={tag} />
         ))}
+        {hiddenCount > 0 && <TagPill tag={`+${hiddenCount}`} />}
       </div>
       {note && (
-        <p className="font-sans text-xs italic text-white/60 drop-shadow">{note}</p>
+        <p className="truncate font-sans text-xs text-white/60 drop-shadow">{note}</p>
       )}
     </div>
   )
@@ -796,39 +799,85 @@ function ChatBubbles({
 }
 
 // ---------------------------------------------------------------------------
-// Carousel paging gesture: tracks touch start/end X/Y on the card itself and
-// pages through that item's own slides — Instagram-carousel style. Convention
-// (matches the iOS back-gesture / standard reading-app pattern): swipe LEFT
-// advances to the next slide, swipe RIGHT retreats to the previous one. Index
-// is clamped to the valid slide range.
+// Carousel paging gesture: tracks touch start/move/end on the card itself and
+// pages through that item's own slides — Instagram-carousel style. The slide
+// track follows the finger live (translateX = current X minus start X, plus
+// whatever index offset is already committed), with rubber-band resistance
+// applied once the drag would go past the first/last slide. On release, the
+// drag distance decides (simple threshold, no velocity/momentum) whether to
+// commit to the next/previous slide or snap back to the current one — that
+// settle is the only point a transition is applied; the live drag itself has
+// none, so it stays directly attached to the finger. Convention (matches the
+// iOS back-gesture / standard reading-app pattern): drag LEFT advances,
+// drag RIGHT retreats. Index is clamped to the valid slide range.
 // ---------------------------------------------------------------------------
 
-function useHorizontalPager(count: number, threshold = 70) {
+const RUBBER_BAND_FACTOR = 0.35 // dampens drag past the first/last slide
+const COMMIT_FRACTION = 0.35 // fraction of card width needed to commit to the next/prev slide
+
+function useHorizontalPager(count: number) {
   const [index, setIndex] = useState(0)
+  const [dragPx, setDragPx] = useState(0)
+  const [settling, setSettling] = useState(false)
   const start = useRef<{ x: number; y: number } | null>(null)
+  const widthRef = useRef(1)
+  const draggingRef = useRef(false)
 
   const onTouchStart = (e: React.TouchEvent) => {
     const t = e.touches[0]
     start.current = { x: t.clientX, y: t.clientY }
+    widthRef.current = e.currentTarget.getBoundingClientRect().width || 1
+    draggingRef.current = false
+    setSettling(false)
   }
 
-  const onTouchEnd = (e: React.TouchEvent) => {
+  const onTouchMove = (e: React.TouchEvent) => {
     if (!start.current) return
-    const t = e.changedTouches[0]
+    const t = e.touches[0]
     const dx = t.clientX - start.current.x
     const dy = t.clientY - start.current.y
-    start.current = null
-    if (Math.abs(dx) <= Math.abs(dy)) return
-    if (dx < -threshold) {
-      // swipe left -> forward / next slide
-      setIndex((i) => Math.min(i + 1, Math.max(count - 1, 0)))
-    } else if (dx > threshold) {
-      // swipe right -> back / previous slide
-      setIndex((i) => Math.max(i - 1, 0))
+    if (!draggingRef.current) {
+      if (Math.abs(dx) <= Math.abs(dy)) return
+      draggingRef.current = true
     }
+    let next = dx
+    // Rubber-band resistance at the carousel's start/end boundaries.
+    if ((index === 0 && dx > 0) || (index === count - 1 && dx < 0)) {
+      next = dx * (1 - RUBBER_BAND_FACTOR)
+    }
+    setDragPx(next)
   }
 
-  return { index, setIndex, onTouchStart, onTouchEnd }
+  const onTouchEnd = () => {
+    if (!start.current) return
+    start.current = null
+    if (!draggingRef.current) {
+      setDragPx(0)
+      return
+    }
+    draggingRef.current = false
+    const width = widthRef.current
+    const commitThreshold = width * COMMIT_FRACTION
+    setSettling(true)
+    if (dragPx <= -commitThreshold && index < count - 1) {
+      setIndex((i) => Math.min(i + 1, Math.max(count - 1, 0)))
+    } else if (dragPx >= commitThreshold && index > 0) {
+      setIndex((i) => Math.max(i - 1, 0))
+    }
+    setDragPx(0)
+  }
+
+  return { index, setIndex, dragPx, settling, onTouchStart, onTouchMove, onTouchEnd }
+}
+
+type HorizontalPager = ReturnType<typeof useHorizontalPager>
+
+/** translateX (as a CSS value) + transition for a pager-driven slide track. */
+function pagerTrackStyle(pager: HorizontalPager): React.CSSProperties {
+  return {
+    transform: `translateX(calc(-${pager.index * 100}% + ${pager.dragPx}px))`,
+    transition: pager.settling ? 'transform 300ms ease-out' : 'none',
+  }
 }
 
 /** Small Instagram-style dot pagination, filled dot = active slide. Bottom-center of the card content area. */
@@ -1092,7 +1141,7 @@ function ProfilePanel({ open, onClose, author }: { open: boolean; onClose: () =>
               >
                 <div className="flex min-w-0 flex-col gap-1">
                   <span className="truncate font-serif text-[15px] text-white">{w.title}</span>
-                  <TypeBadge>{w.type}</TypeBadge>
+                  <span className="font-sans text-[11px] uppercase tracking-wide text-white/40">{w.type}</span>
                 </div>
                 <div className="flex shrink-0 items-center gap-1 text-white/60">
                   <Heart className="h-3.5 w-3.5" strokeWidth={1.75} />
@@ -1138,7 +1187,6 @@ function CardChrome({
   children,
   bg,
   author,
-  badge,
   tags,
   note,
   onAvatarClick,
@@ -1146,7 +1194,6 @@ function CardChrome({
   children: React.ReactNode
   bg: string
   author: Author
-  badge: React.ReactNode
   tags: string[]
   note?: string
   onAvatarClick?: () => void
@@ -1158,7 +1205,6 @@ function CardChrome({
     >
       <div className="absolute inset-0 bg-black/10" />
       <div className="relative z-10 mx-auto flex w-full max-w-md flex-col gap-4">
-        {badge}
         {children}
       </div>
       <div className="absolute bottom-24 left-6 z-20 sm:bottom-8 sm:left-10">
@@ -1199,13 +1245,13 @@ function DrabbleCard({
       ref={ref}
       className="relative h-full w-full"
       onTouchStart={pager.onTouchStart}
+      onTouchMove={pager.onTouchMove}
       onTouchEnd={pager.onTouchEnd}
     >
       <DoubleTapLike onDoubleTap={likeOnDoubleTap}>
         <CardChrome
           bg={`linear-gradient(160deg, ${item.author.color}dd, #0b0b12)`}
           author={item.author}
-          badge={<TypeBadge>Drabble</TypeBadge>}
           tags={item.tags}
           note={item.note}
           onAvatarClick={() => onOpenProfile(item.author)}
@@ -1213,8 +1259,8 @@ function DrabbleCard({
           <h2 className="font-serif text-2xl text-white drop-shadow sm:text-3xl">{item.title}</h2>
           <div className="overflow-hidden">
             <div
-              className="flex transition-transform duration-300 ease-out"
-              style={{ transform: `translateX(-${pager.index * 100}%)` }}
+              className="flex"
+              style={pagerTrackStyle(pager)}
             >
               {slides.map((slide, i) =>
                 i === 0 ? (
@@ -1282,21 +1328,22 @@ function LongformCard({
       ref={ref}
       className="relative h-full w-full"
       onTouchStart={pager.onTouchStart}
+      onTouchMove={pager.onTouchMove}
       onTouchEnd={pager.onTouchEnd}
     >
       <DoubleTapLike onDoubleTap={likeOnDoubleTap}>
         <CardChrome
           bg={`linear-gradient(160deg, ${item.author.color}dd, #0b0b12)`}
           author={item.author}
-          badge={<TypeBadge>{item.title}</TypeBadge>}
           tags={item.tags}
           note={item.note}
           onAvatarClick={() => onOpenProfile(item.author)}
         >
+          <h2 className="font-serif text-2xl text-white drop-shadow sm:text-3xl">{item.title}</h2>
           <div className="overflow-hidden">
             <div
-              className="flex transition-transform duration-300 ease-out"
-              style={{ transform: `translateX(-${pager.index * 100}%)` }}
+              className="flex"
+              style={pagerTrackStyle(pager)}
             >
               {slides.map((slide, i) =>
                 i === 0 ? (
@@ -1367,6 +1414,7 @@ function ChatCard({
       ref={ref}
       className="relative h-full w-full"
       onTouchStart={pager.onTouchStart}
+      onTouchMove={pager.onTouchMove}
       onTouchEnd={pager.onTouchEnd}
     >
       <DoubleTapLike onDoubleTap={likeOnDoubleTap}>
@@ -1376,11 +1424,11 @@ function ChatCard({
         >
           <div className="absolute inset-0 bg-black/15" />
           <div className="relative z-10 mx-auto flex w-full max-w-md flex-col gap-4">
-            <TypeBadge>Chat AU · {item.title}</TypeBadge>
+            <h2 className="font-serif text-2xl text-white drop-shadow sm:text-3xl">{item.title}</h2>
             <div className="overflow-hidden">
               <div
-                className="flex transition-transform duration-300 ease-out"
-                style={{ transform: `translateX(-${pager.index * 100}%)` }}
+                className="flex"
+                style={pagerTrackStyle(pager)}
               >
                 {slides.map((slideMessages, i) => (
                   <div key={i} className="w-full shrink-0 transition-opacity duration-300">
@@ -1432,7 +1480,10 @@ type FeedTab = 'forYou' | 'following'
 
 function FeedTabs({ tab, onChange }: { tab: FeedTab; onChange: (tab: FeedTab) => void }) {
   return (
-    <div className="pointer-events-auto absolute left-1/2 top-16 z-30 -translate-x-1/2">
+    <div
+      className="pointer-events-auto absolute left-1/2 z-30 -translate-x-1/2"
+      style={{ top: 'calc(env(safe-area-inset-top) + 1rem)' }}
+    >
       <div className="flex items-center gap-1 rounded-full bg-white/10 p-1 backdrop-blur-md">
         {(
           [
@@ -1452,6 +1503,88 @@ function FeedTabs({ tab, onChange }: { tab: FeedTab; onChange: (tab: FeedTab) =>
             {opt.label}
           </button>
         ))}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Bottom tab bar — playground-specific IA (Discover · Search · Write ·
+// Library · Notifications), distinct from the real app's shared Navigation.
+// "Discover" is this page itself (no navigation). The other four are real
+// `useNavigate` calls to already-working routes. "Write" is raised into a
+// filled circular CTA, mirroring how TikTok/Instagram elevate a center
+// "create" tab above the rest of the bar.
+// ---------------------------------------------------------------------------
+
+function PlaygroundTabBar() {
+  const navigate = useNavigate()
+
+  const flatItems = [
+    { key: 'discover', label: 'Discover', icon: Compass, onClick: () => {} },
+    { key: 'search', label: 'Search', icon: Search, onClick: () => navigate('/search') },
+    { key: 'library', label: 'Library', icon: Library, onClick: () => navigate('/library') },
+    { key: 'notifications', label: 'Notifications', icon: Bell, onClick: () => navigate('/notifications') },
+  ]
+
+  return (
+    <div
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center pb-[env(safe-area-inset-bottom)]"
+      aria-label="Playground navigation"
+    >
+      <div className="pointer-events-auto relative flex w-full max-w-md items-center justify-between bg-black/70 px-4 pb-2.5 pt-2 backdrop-blur-md">
+        {/* Discover */}
+        <button
+          type="button"
+          onClick={flatItems[0].onClick}
+          className="flex flex-col items-center gap-0.5 px-2 py-1 text-white"
+        >
+          <Compass className="h-5 w-5" strokeWidth={2} />
+          <span className="font-sans text-[10px] font-medium">Discover</span>
+        </button>
+
+        {/* Search */}
+        <button
+          type="button"
+          onClick={flatItems[1].onClick}
+          className="flex flex-col items-center gap-0.5 px-2 py-1 text-white/60 transition-colors hover:text-white"
+        >
+          <Search className="h-5 w-5" strokeWidth={1.75} />
+          <span className="font-sans text-[10px] font-medium">Search</span>
+        </button>
+
+        {/* Write — raised circular CTA */}
+        <div className="flex flex-col items-center">
+          <button
+            type="button"
+            onClick={() => navigate('/studio')}
+            aria-label="Write"
+            className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full bg-white text-ink shadow-lg ring-4 ring-black/70 transition-transform active:scale-90"
+          >
+            <PenLine className="h-6 w-6" strokeWidth={2} />
+          </button>
+          <span className="mt-0.5 font-sans text-[10px] font-medium text-white/60">Write</span>
+        </div>
+
+        {/* Library */}
+        <button
+          type="button"
+          onClick={flatItems[2].onClick}
+          className="flex flex-col items-center gap-0.5 px-2 py-1 text-white/60 transition-colors hover:text-white"
+        >
+          <Library className="h-5 w-5" strokeWidth={1.75} />
+          <span className="font-sans text-[10px] font-medium">Library</span>
+        </button>
+
+        {/* Notifications */}
+        <button
+          type="button"
+          onClick={flatItems[3].onClick}
+          className="flex flex-col items-center gap-0.5 px-2 py-1 text-white/60 transition-colors hover:text-white"
+        >
+          <Bell className="h-5 w-5" strokeWidth={1.75} />
+          <span className="font-sans text-[10px] font-medium">Notifications</span>
+        </button>
       </div>
     </div>
   )
@@ -1492,6 +1625,7 @@ export default function ReelsFeed() {
         ))}
       </div>
       <ProfilePanel open={profileAuthor !== null} onClose={() => setProfileAuthor(null)} author={profileAuthor} />
+      <PlaygroundTabBar />
     </div>
   )
 }

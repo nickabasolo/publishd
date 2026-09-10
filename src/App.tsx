@@ -80,18 +80,18 @@ function App() {
                     <Route path="/studio/:slug/analytics" element={<StoryAnalyticsPage />} />
                     <Route path="/studio/:slug/:chapterId" element={<ChapterEditorPage />} />
                     <Route path="/settings" element={<SettingsPage />} />
-                    {PlaygroundRoute && (
-                      <Route
-                        path="/playground/*"
-                        element={
-                          <Suspense fallback={null}>
-                            <PlaygroundRoute />
-                          </Suspense>
-                        }
-                      />
-                    )}
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Route>
+                  {PlaygroundRoute && (
+                    <Route
+                      path="/playground/*"
+                      element={
+                        <Suspense fallback={null}>
+                          <PlaygroundRoute />
+                        </Suspense>
+                      }
+                    />
+                  )}
                 </Routes>
               </AuthPromptProvider>
             </AccountProvider>

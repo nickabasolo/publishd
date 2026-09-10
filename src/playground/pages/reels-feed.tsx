@@ -640,17 +640,20 @@ function TagPill({ tag }: { tag: string }) {
 /**
  * Tag pills + optional author caption, rendered beneath the author chip on a
  * card. Tags stay on a single line: a simple heuristic (rather than precise
- * per-render width measurement) always shows the first 3 tags and folds any
+ * per-render width measurement) always shows the first 2 tags and folds any
  * remainder into a trailing "+N" pill, tuned to fit the card's max-width at
- * typical mobile widths.
+ * typical mobile widths. The wrapper is width-capped relative to the
+ * viewport (not just a fixed px value) and carries `min-w-0` + `overflow-hidden`
+ * on both itself and the tag row so nothing — not even a clipped/partial
+ * chip — can bleed past the screen edge on narrow devices.
  */
 function AuthorMeta({ tags, note }: { tags: string[]; note?: string }) {
-  const VISIBLE = 3
+  const VISIBLE = 2
   const shown = tags.slice(0, VISIBLE)
   const hiddenCount = tags.length - shown.length
   return (
-    <div className="mt-1.5 flex max-w-[220px] flex-col gap-1.5 sm:max-w-xs">
-      <div className="flex flex-nowrap items-center gap-1.5 overflow-hidden">
+    <div className="mt-1.5 flex w-full min-w-0 max-w-[calc(100vw-6rem)] flex-col gap-1.5 sm:max-w-xs">
+      <div className="flex min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden">
         {shown.map((tag) => (
           <TagPill key={tag} tag={tag} />
         ))}
@@ -946,7 +949,7 @@ function pagerTrackStyle(pager: HorizontalPager): React.CSSProperties {
 function DotIndicators({ count, index }: { count: number; index: number }) {
   if (count <= 1) return null
   return (
-    <div className="pointer-events-none absolute bottom-32 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5">
+    <div className="pointer-events-none absolute bottom-56 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5">
       {Array.from({ length: count }).map((_, i) => (
         <span
           key={i}

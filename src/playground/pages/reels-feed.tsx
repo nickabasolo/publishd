@@ -2,7 +2,6 @@
 // Fully self-contained, hardcoded Lorem Ipsum data. Not wired to any real data
 // layer, no navigation to real routes. Playground page only — throwaway.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Heart, MessageCircle, Share2, Bookmark, X, ChevronLeft, Compass, Search, PenLine, Library, Bell } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -360,6 +359,30 @@ const FOLLOWING: FeedItem[] = [
     comments: 139,
     tags: ['omega', 'jaehyun x minhyuk', 'slow burn'],
   },
+]
+
+const FAKE_SEARCH_RESULTS = [
+  { title: 'The Glass Orchard', author: AUTHORS[0], kind: 'Story' },
+  { title: 'Static on the Line', author: AUTHORS[1], kind: 'Story' },
+  { title: 'Harbor of Small Regrets', author: AUTHORS[2], kind: 'Story' },
+  { title: 'Priya Anand', author: AUTHORS[3], kind: 'Author' },
+  { title: 'slow burn', author: AUTHORS[4], kind: 'Tag' },
+]
+
+const FAKE_LIBRARY_ITEMS = [
+  { title: 'Harbor of Small Regrets', author: AUTHORS[2], progress: 62 },
+  { title: 'Comeback Week', author: FOLLOWING_AUTHORS[2], progress: 18 },
+  { title: 'The Cartographer\'s Debt', author: AUTHORS[4], progress: 91 },
+  { title: 'Encore', author: FOLLOWING_AUTHORS[3], progress: 40 },
+]
+
+const FAKE_NOTIFICATIONS = [
+  { person: FAKE_COMMENTERS[0], text: 'liked your story', time: '2h ago' },
+  { person: FAKE_COMMENTERS[1], text: 'commented on your chapter', time: '4h ago' },
+  { person: FAKE_COMMENTERS[2], text: 'started following you', time: '6h ago' },
+  { person: FAKE_COMMENTERS[3], text: 'liked your story', time: '1d ago' },
+  { person: FAKE_COMMENTERS[4], text: 'mentioned you in a comment', time: '2d ago' },
+  { person: FAKE_COMMENTERS[0], text: 'started following you', time: '3d ago' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -814,48 +837,87 @@ function ChatBubbles({
 
 const RUBBER_BAND_FACTOR = 0.35 // dampens drag past the first/last slide
 const COMMIT_FRACTION = 0.35 // fraction of card width needed to commit to the next/prev slide
+const AXIS_LOCK_THRESHOLD = 8 // px of total movement before an axis is committed to
 
+/**
+ * Axis-locked horizontal pager. Two gesture systems compete on this page: the
+ * browser's native vertical scroll-snap (moves between feed items) and this
+ * hand-rolled horizontal carousel drag. To stop a diagonal swipe from firing
+ * both at once, the touch sequence is locked to whichever axis (`|dx|` vs
+ * `|dy|`) crosses AXIS_LOCK_THRESHOLD first, and that lock holds for the rest
+ * of the gesture (reset on the next touchstart):
+ *  - locked 'horizontal': drive the carousel drag as before, and
+ *    preventDefault() every subsequent touchmove so native vertical scroll
+ *    can't also engage. preventDefault() only works on a non-passive
+ *    listener, so the touchmove handler is attached via a plain
+ *    addEventListener({ passive: false }) in an effect (React's onTouchMove
+ *    JSX prop is passive by default and can't block scrolling).
+ *  - locked 'vertical': do nothing — no drag offset update, no
+ *    preventDefault — and let the native scroll-snap behave exactly as it
+ *    does everywhere else on the page.
+ */
 function useHorizontalPager(count: number) {
   const [index, setIndex] = useState(0)
   const [dragPx, setDragPx] = useState(0)
   const [settling, setSettling] = useState(false)
   const start = useRef<{ x: number; y: number } | null>(null)
   const widthRef = useRef(1)
-  const draggingRef = useRef(false)
+  const axisRef = useRef<'horizontal' | 'vertical' | null>(null)
+  const elRef = useRef<HTMLDivElement | null>(null)
+  const indexRef = useRef(index)
+  indexRef.current = index
+  const countRef = useRef(count)
+  countRef.current = count
 
   const onTouchStart = (e: React.TouchEvent) => {
     const t = e.touches[0]
     start.current = { x: t.clientX, y: t.clientY }
     widthRef.current = e.currentTarget.getBoundingClientRect().width || 1
-    draggingRef.current = false
+    axisRef.current = null
     setSettling(false)
   }
 
-  const onTouchMove = (e: React.TouchEvent) => {
-    if (!start.current) return
-    const t = e.touches[0]
-    const dx = t.clientX - start.current.x
-    const dy = t.clientY - start.current.y
-    if (!draggingRef.current) {
-      if (Math.abs(dx) <= Math.abs(dy)) return
-      draggingRef.current = true
+  useEffect(() => {
+    const el = elRef.current
+    if (!el) return
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!start.current) return
+      const t = e.touches[0]
+      const dx = t.clientX - start.current.x
+      const dy = t.clientY - start.current.y
+
+      if (axisRef.current === null) {
+        if (Math.abs(dx) < AXIS_LOCK_THRESHOLD && Math.abs(dy) < AXIS_LOCK_THRESHOLD) return
+        axisRef.current = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical'
+      }
+
+      if (axisRef.current === 'vertical') return // hand off to native scroll-snap entirely
+
+      // Locked horizontal: drive the carousel and block native vertical scroll.
+      e.preventDefault()
+      const idx = indexRef.current
+      const cnt = countRef.current
+      let next = dx
+      if ((idx === 0 && dx > 0) || (idx === cnt - 1 && dx < 0)) {
+        next = dx * (1 - RUBBER_BAND_FACTOR)
+      }
+      setDragPx(next)
     }
-    let next = dx
-    // Rubber-band resistance at the carousel's start/end boundaries.
-    if ((index === 0 && dx > 0) || (index === count - 1 && dx < 0)) {
-      next = dx * (1 - RUBBER_BAND_FACTOR)
-    }
-    setDragPx(next)
-  }
+
+    el.addEventListener('touchmove', handleTouchMove, { passive: false })
+    return () => el.removeEventListener('touchmove', handleTouchMove)
+  }, [])
 
   const onTouchEnd = () => {
     if (!start.current) return
     start.current = null
-    if (!draggingRef.current) {
+    const wasHorizontal = axisRef.current === 'horizontal'
+    axisRef.current = null
+    if (!wasHorizontal) {
       setDragPx(0)
       return
     }
-    draggingRef.current = false
     const width = widthRef.current
     const commitThreshold = width * COMMIT_FRACTION
     setSettling(true)
@@ -867,7 +929,7 @@ function useHorizontalPager(count: number) {
     setDragPx(0)
   }
 
-  return { index, setIndex, dragPx, settling, onTouchStart, onTouchMove, onTouchEnd }
+  return { index, setIndex, dragPx, settling, onTouchStart, onTouchEnd, elRef }
 }
 
 type HorizontalPager = ReturnType<typeof useHorizontalPager>
@@ -1242,10 +1304,12 @@ function DrabbleCard({
   const isLastSlide = pager.index === slides.length - 1
   return (
     <div
-      ref={ref}
+      ref={(node) => {
+        ref.current = node
+        pager.elRef.current = node
+      }}
       className="relative h-full w-full"
       onTouchStart={pager.onTouchStart}
-      onTouchMove={pager.onTouchMove}
       onTouchEnd={pager.onTouchEnd}
     >
       <DoubleTapLike onDoubleTap={likeOnDoubleTap}>
@@ -1325,10 +1389,12 @@ function LongformCard({
   const isLastSlide = pager.index === slides.length - 1
   return (
     <div
-      ref={ref}
+      ref={(node) => {
+        ref.current = node
+        pager.elRef.current = node
+      }}
       className="relative h-full w-full"
       onTouchStart={pager.onTouchStart}
-      onTouchMove={pager.onTouchMove}
       onTouchEnd={pager.onTouchEnd}
     >
       <DoubleTapLike onDoubleTap={likeOnDoubleTap}>
@@ -1411,10 +1477,12 @@ function ChatCard({
   const isLastSlide = pager.index === slides.length - 1
   return (
     <div
-      ref={ref}
+      ref={(node) => {
+        ref.current = node
+        pager.elRef.current = node
+      }}
       className="relative h-full w-full"
       onTouchStart={pager.onTouchStart}
-      onTouchMove={pager.onTouchMove}
       onTouchEnd={pager.onTouchEnd}
     >
       <DoubleTapLike onDoubleTap={likeOnDoubleTap}>
@@ -1477,6 +1545,7 @@ function ChatCard({
 // ---------------------------------------------------------------------------
 
 type FeedTab = 'forYou' | 'following'
+type ActiveView = 'discover' | 'search' | 'write' | 'library' | 'notifications'
 
 function FeedTabs({ tab, onChange }: { tab: FeedTab; onChange: (tab: FeedTab) => void }) {
   return (
@@ -1511,22 +1580,21 @@ function FeedTabs({ tab, onChange }: { tab: FeedTab; onChange: (tab: FeedTab) =>
 // ---------------------------------------------------------------------------
 // Bottom tab bar — playground-specific IA (Discover · Search · Write ·
 // Library · Notifications), distinct from the real app's shared Navigation.
-// "Discover" is this page itself (no navigation). The other four are real
-// `useNavigate` calls to already-working routes. "Write" is raised into a
-// filled circular CTA, mirroring how TikTok/Instagram elevate a center
+// None of these navigate to real routes (that broke the playground context
+// when tried) — instead they switch a local `activeView` overlay rendered in
+// place over the reels feed, which stays mounted underneath the whole time so
+// tabbing back to "Discover" returns exactly where it was. "Write" is raised
+// into a filled circular CTA, mirroring how TikTok/Instagram elevate a center
 // "create" tab above the rest of the bar.
 // ---------------------------------------------------------------------------
 
-function PlaygroundTabBar() {
-  const navigate = useNavigate()
-
-  const flatItems = [
-    { key: 'discover', label: 'Discover', icon: Compass, onClick: () => {} },
-    { key: 'search', label: 'Search', icon: Search, onClick: () => navigate('/search') },
-    { key: 'library', label: 'Library', icon: Library, onClick: () => navigate('/library') },
-    { key: 'notifications', label: 'Notifications', icon: Bell, onClick: () => navigate('/notifications') },
-  ]
-
+function PlaygroundTabBar({
+  active,
+  onChange,
+}: {
+  active: ActiveView
+  onChange: (view: ActiveView) => void
+}) {
   return (
     <div
       className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center pb-[env(safe-area-inset-bottom)]"
@@ -1536,20 +1604,26 @@ function PlaygroundTabBar() {
         {/* Discover */}
         <button
           type="button"
-          onClick={flatItems[0].onClick}
-          className="flex flex-col items-center gap-0.5 px-2 py-1 text-white"
+          onClick={() => onChange('discover')}
+          className={cn(
+            'flex flex-col items-center gap-0.5 px-2 py-1 transition-colors',
+            active === 'discover' ? 'text-white' : 'text-white/60 hover:text-white',
+          )}
         >
-          <Compass className="h-5 w-5" strokeWidth={2} />
+          <Compass className="h-5 w-5" strokeWidth={active === 'discover' ? 2 : 1.75} />
           <span className="font-sans text-[10px] font-medium">Discover</span>
         </button>
 
         {/* Search */}
         <button
           type="button"
-          onClick={flatItems[1].onClick}
-          className="flex flex-col items-center gap-0.5 px-2 py-1 text-white/60 transition-colors hover:text-white"
+          onClick={() => onChange('search')}
+          className={cn(
+            'flex flex-col items-center gap-0.5 px-2 py-1 transition-colors',
+            active === 'search' ? 'text-white' : 'text-white/60 hover:text-white',
+          )}
         >
-          <Search className="h-5 w-5" strokeWidth={1.75} />
+          <Search className="h-5 w-5" strokeWidth={active === 'search' ? 2 : 1.75} />
           <span className="font-sans text-[10px] font-medium">Search</span>
         </button>
 
@@ -1557,7 +1631,7 @@ function PlaygroundTabBar() {
         <div className="flex flex-col items-center">
           <button
             type="button"
-            onClick={() => navigate('/studio')}
+            onClick={() => onChange('write')}
             aria-label="Write"
             className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full bg-white text-ink shadow-lg ring-4 ring-black/70 transition-transform active:scale-90"
           >
@@ -1569,21 +1643,156 @@ function PlaygroundTabBar() {
         {/* Library */}
         <button
           type="button"
-          onClick={flatItems[2].onClick}
-          className="flex flex-col items-center gap-0.5 px-2 py-1 text-white/60 transition-colors hover:text-white"
+          onClick={() => onChange('library')}
+          className={cn(
+            'flex flex-col items-center gap-0.5 px-2 py-1 transition-colors',
+            active === 'library' ? 'text-white' : 'text-white/60 hover:text-white',
+          )}
         >
-          <Library className="h-5 w-5" strokeWidth={1.75} />
+          <Library className="h-5 w-5" strokeWidth={active === 'library' ? 2 : 1.75} />
           <span className="font-sans text-[10px] font-medium">Library</span>
         </button>
 
         {/* Notifications */}
         <button
           type="button"
-          onClick={flatItems[3].onClick}
-          className="flex flex-col items-center gap-0.5 px-2 py-1 text-white/60 transition-colors hover:text-white"
+          onClick={() => onChange('notifications')}
+          className={cn(
+            'flex flex-col items-center gap-0.5 px-2 py-1 transition-colors',
+            active === 'notifications' ? 'text-white' : 'text-white/60 hover:text-white',
+          )}
         >
-          <Bell className="h-5 w-5" strokeWidth={1.75} />
+          <Bell className="h-5 w-5" strokeWidth={active === 'notifications' ? 2 : 1.75} />
           <span className="font-sans text-[10px] font-medium">Notifications</span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Fake static mock screens for the non-Discover tabs — obviously-placeholder
+// substitutes for the real /search, /library, /notifications, /studio pages.
+// Rendered as a full-screen overlay ABOVE the reels feed (which stays
+// mounted, untouched, behind them), so switching back to "Discover" is just
+// unmounting the overlay — the feed's scroll position was never disturbed.
+// Each has its own back affordance, though the tab bar staying visible above
+// the overlay means tapping "Discover" again works just as well.
+// ---------------------------------------------------------------------------
+
+function MockScreenHeader({ title, onBack }: { title: string; onBack: () => void }) {
+  return (
+    <div className="flex items-center gap-3 border-b border-white/10 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
+      <button
+        type="button"
+        onClick={onBack}
+        className="rounded-full p-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+        aria-label="Back to feed"
+      >
+        <ChevronLeft className="h-5 w-5" />
+      </button>
+      <span className="font-sans text-sm font-semibold text-white">{title}</span>
+    </div>
+  )
+}
+
+function SearchMock({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="flex h-full flex-col">
+      <MockScreenHeader title="Search" onBack={onBack} />
+      <div className="px-4 pt-4">
+        <div className="rounded-full bg-white/10 px-4 py-2.5 font-sans text-sm text-white/40">
+          Search stories, authors, tags
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="flex flex-col gap-3">
+          {FAKE_SEARCH_RESULTS.map((r, i) => (
+            <div key={i} className="flex items-center gap-3 rounded-xl bg-white/5 px-3.5 py-3">
+              <MiniAvatar name={r.author.name} color={r.author.color} size={36} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-serif text-[15px] text-white">{r.title}</div>
+                <div className="font-sans text-xs text-white/50">
+                  {r.kind} · @{r.author.handle}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function LibraryMock({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="flex h-full flex-col">
+      <MockScreenHeader title="Library" onBack={onBack} />
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        <span className="font-sans text-xs font-semibold uppercase tracking-wide text-white/40">
+          Currently reading
+        </span>
+        <div className="mt-3 flex flex-col gap-3">
+          {FAKE_LIBRARY_ITEMS.map((item, i) => (
+            <div key={i} className="flex items-center gap-3 rounded-xl bg-white/5 px-3.5 py-3">
+              <MiniAvatar name={item.author.name} color={item.author.color} size={36} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-serif text-[15px] text-white">{item.title}</div>
+                <div className="font-sans text-xs text-white/50">@{item.author.handle}</div>
+                <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-white/70"
+                    style={{ width: `${item.progress}%` }}
+                  />
+                </div>
+              </div>
+              <span className="shrink-0 font-sans text-xs text-white/50">{item.progress}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function NotificationsMock({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="flex h-full flex-col">
+      <MockScreenHeader title="Notifications" onBack={onBack} />
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="flex flex-col gap-4">
+          {FAKE_NOTIFICATIONS.map((n, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <MiniAvatar name={n.person.name} color={n.person.color} size={36} />
+              <div className="min-w-0 flex-1">
+                <p className="font-sans text-sm text-white/90">
+                  <span className="font-semibold text-white">{n.person.name}</span> {n.text}
+                </p>
+              </div>
+              <span className="shrink-0 font-sans text-xs text-white/40">{n.time}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function WriteMock({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="flex h-full flex-col">
+      <MockScreenHeader title="Write" onBack={onBack} />
+      <div className="flex flex-1 flex-col items-center justify-center gap-6 px-8 text-center">
+        <PenLine className="h-10 w-10 text-white/40" strokeWidth={1.5} />
+        <div className="w-full max-w-xs rounded-xl bg-white/5 px-4 py-3 text-left font-serif text-lg text-white/40">
+          Untitled story
+        </div>
+        <button
+          type="button"
+          onClick={onBack}
+          className="w-full max-w-xs rounded-full bg-white px-6 py-3 font-sans text-sm font-semibold text-ink shadow-lg transition-transform active:scale-95"
+        >
+          Start writing
         </button>
       </div>
     </div>
@@ -1596,6 +1805,8 @@ export default function ReelsFeed() {
   const isFollowing = tab === 'following'
   const items = isFollowing ? FOLLOWING : FEED
   const [profileAuthor, setProfileAuthor] = useState<Author | null>(null)
+  const [activeView, setActiveView] = useState<ActiveView>('discover')
+  const backToDiscover = () => setActiveView('discover')
 
   const handleTabChange = (next: FeedTab) => {
     setTab(next)
@@ -1625,7 +1836,15 @@ export default function ReelsFeed() {
         ))}
       </div>
       <ProfilePanel open={profileAuthor !== null} onClose={() => setProfileAuthor(null)} author={profileAuthor} />
-      <PlaygroundTabBar />
+      {activeView !== 'discover' && (
+        <div className="fixed inset-0 z-[35] bg-[#141419] text-white">
+          {activeView === 'search' && <SearchMock onBack={backToDiscover} />}
+          {activeView === 'library' && <LibraryMock onBack={backToDiscover} />}
+          {activeView === 'notifications' && <NotificationsMock onBack={backToDiscover} />}
+          {activeView === 'write' && <WriteMock onBack={backToDiscover} />}
+        </div>
+      )}
+      <PlaygroundTabBar active={activeView} onChange={setActiveView} />
     </div>
   )
 }

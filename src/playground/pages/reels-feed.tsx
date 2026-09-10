@@ -2,7 +2,7 @@
 // Fully self-contained, hardcoded Lorem Ipsum data. Not wired to any real data
 // layer, no navigation to real routes. Playground page only — throwaway.
 import { useEffect, useRef, useState } from 'react'
-import { Heart, MessageCircle, Share2, Bookmark } from 'lucide-react'
+import { Heart, MessageCircle, Share2, Bookmark, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
@@ -17,6 +17,23 @@ const AUTHORS: Author[] = [
   { name: 'Theo Vance', handle: 'theov', color: '#2f9e6f' },
   { name: 'Priya Anand', handle: 'priyaa', color: '#d94f8c' },
   { name: 'Sam Whitlock', handle: 'samw', color: '#c98a1f' },
+]
+
+const FAKE_COMMENTERS = [
+  { name: 'Odalys Fenn', handle: 'odalysf', color: '#3a8de0' },
+  { name: 'Bram Castellan', handle: 'bramc', color: '#e0a23a' },
+  { name: 'Yuki Serrano', handle: 'yukis', color: '#8c5cd9' },
+  { name: 'Juno Ackerley', handle: 'junoa', color: '#2f9e6f' },
+  { name: 'Devrim Okonkwo', handle: 'devrimo', color: '#e0623a' },
+]
+
+const FAKE_COMMENTS = [
+  'Lorem ipsum dolor sit amet, this hit way harder than expected.',
+  'Consectetur adipiscing elit — the ending genuinely got me.',
+  'Sed do eiusmod tempor incididunt, need a part two immediately.',
+  'Ut enim ad minim veniam, the pacing here is perfect.',
+  'Duis aute irure dolor in reprehenderit, saving this one.',
+  'Excepteur sint occaecat cupidatat non proident, reread it twice already.',
 ]
 
 interface DrabbleItem {
@@ -218,13 +235,24 @@ function TypeBadge({ children }: { children: React.ReactNode }) {
   )
 }
 
-function ActionRail({ likes, comments }: { likes: number; comments: number }) {
-  const [liked, setLiked] = useState(false)
+function ActionRail({
+  likes,
+  comments,
+  liked,
+  onToggleLike,
+  onOpenComments,
+}: {
+  likes: number
+  comments: number
+  liked: boolean
+  onToggleLike: () => void
+  onOpenComments: () => void
+}) {
   return (
     <div className="absolute bottom-24 right-3 z-20 flex flex-col items-center gap-5 text-white sm:right-6">
       <button
         type="button"
-        onClick={() => setLiked((v) => !v)}
+        onClick={onToggleLike}
         className="flex flex-col items-center gap-1 transition-transform active:scale-90"
       >
         <Heart
@@ -237,7 +265,7 @@ function ActionRail({ likes, comments }: { likes: number; comments: number }) {
       </button>
       <button
         type="button"
-        onClick={() => console.log('comment tapped (inert)')}
+        onClick={onOpenComments}
         className="flex flex-col items-center gap-1 transition-transform active:scale-90"
       >
         <MessageCircle className="h-7 w-7 drop-shadow" strokeWidth={1.75} />
@@ -258,6 +286,142 @@ function ActionRail({ likes, comments }: { likes: number; comments: number }) {
       >
         <Bookmark className="h-7 w-7 drop-shadow" strokeWidth={1.75} />
       </button>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Double-tap-to-like: wraps a card's content, detects two taps within 300ms,
+// and fires a big center heart burst — mirrors Instagram/TikTok behavior.
+// ---------------------------------------------------------------------------
+
+function DoubleTapLike({
+  children,
+  onDoubleTap,
+}: {
+  children: React.ReactNode
+  onDoubleTap: () => void
+}) {
+  const lastTapRef = useRef(0)
+  const [burstKey, setBurstKey] = useState(0)
+  const [burstVisible, setBurstVisible] = useState(false)
+
+  const handleTap = () => {
+    const now = Date.now()
+    if (now - lastTapRef.current < 300) {
+      lastTapRef.current = 0
+      onDoubleTap()
+      setBurstKey((k) => k + 1)
+      setBurstVisible(true)
+      window.setTimeout(() => setBurstVisible(false), 650)
+    } else {
+      lastTapRef.current = now
+    }
+  }
+
+  return (
+    <div className="absolute inset-0 z-10" onClick={handleTap}>
+      {children}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <Heart
+          key={burstKey}
+          className={cn(
+            'h-28 w-28 fill-rose-500 text-rose-500 drop-shadow-xl transition-all duration-500 ease-out',
+            burstVisible ? 'scale-100 opacity-90' : 'scale-[1.6] opacity-0',
+          )}
+          strokeWidth={1}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Fake comment sheet — bottom sheet with hardcoded Lorem Ipsum comments.
+// Purely a visual mock: no input persistence, nothing is actually posted.
+// ---------------------------------------------------------------------------
+
+function CommentSheet({
+  open,
+  onClose,
+  count,
+}: {
+  open: boolean
+  onClose: () => void
+  count: number
+}) {
+  const [mounted, setMounted] = useState(false)
+  const [shown, setShown] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setMounted(true)
+      const raf = requestAnimationFrame(() => setShown(true))
+      return () => cancelAnimationFrame(raf)
+    }
+    setShown(false)
+    const timer = window.setTimeout(() => setMounted(false), 300)
+    return () => window.clearTimeout(timer)
+  }, [open])
+
+  if (!mounted) return null
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+      <div
+        className={cn(
+          'absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300',
+          shown ? 'opacity-100' : 'opacity-0',
+        )}
+        onClick={onClose}
+        aria-hidden
+      />
+      <div
+        className="relative z-10 flex max-h-[75vh] flex-col rounded-t-2xl bg-[#141419] pb-[env(safe-area-inset-bottom)] text-white shadow-2xl transition-transform duration-300 ease-out"
+        style={{ transform: shown ? 'translateY(0)' : 'translateY(100%)' }}
+      >
+        <div className="flex justify-center pt-2.5">
+          <div className="h-1 w-10 rounded-full bg-white/25" />
+        </div>
+        <div className="flex items-center justify-between px-4 pb-3 pt-2">
+          <span className="font-sans text-sm font-semibold text-white">
+            {fmtCount(count)} comments
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-1 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+            aria-label="Close comments"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4">
+          <div className="flex flex-col gap-4 pb-4">
+            {FAKE_COMMENTERS.map((commenter, i) => (
+              <div key={commenter.handle} className="flex items-start gap-3">
+                <MiniAvatar name={commenter.name} color={commenter.color} size={32} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="font-sans text-[13px] font-semibold text-white">
+                      {commenter.name}
+                    </span>
+                    <span className="font-sans text-xs text-white/50">@{commenter.handle}</span>
+                  </div>
+                  <p className="font-sans text-[14px] leading-snug text-white/90">
+                    {FAKE_COMMENTS[i % FAKE_COMMENTS.length]}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 border-t border-white/10 px-4 py-3">
+          <MiniAvatar name="You" color="#6b6b76" size={28} />
+          <div className="flex-1 rounded-full bg-white/10 px-3.5 py-2 font-sans text-sm text-white/40">
+            Add a comment…
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -452,87 +616,129 @@ function CardChrome({
         {badge}
         {children}
       </div>
-      <div className="absolute bottom-8 left-6 z-20 sm:left-10">
+      <div className="absolute bottom-24 left-6 z-20 sm:bottom-8 sm:left-10">
         <AuthorRow author={author} />
       </div>
     </div>
   )
 }
 
+/** Shared like + comment-sheet state for a feed item, used by both the action rail and double-tap. */
+function useCardEngagement() {
+  const [liked, setLiked] = useState(false)
+  const [commentsOpen, setCommentsOpen] = useState(false)
+  const toggleLike = () => setLiked((v) => !v)
+  const likeOnDoubleTap = () => setLiked(true)
+  return { liked, toggleLike, likeOnDoubleTap, commentsOpen, setCommentsOpen }
+}
+
 function DrabbleCard({ item }: { item: DrabbleItem }) {
   const { ref, played } = useInViewOnce()
+  const { liked, toggleLike, likeOnDoubleTap, commentsOpen, setCommentsOpen } = useCardEngagement()
   return (
     <div ref={ref} className="relative h-full w-full">
-      <CardChrome
-        bg={`linear-gradient(160deg, ${item.author.color}dd, #0b0b12)`}
-        author={item.author}
-        badge={<TypeBadge>Drabble</TypeBadge>}
-      >
-        <h2 className="font-serif text-2xl text-white drop-shadow sm:text-3xl">{item.title}</h2>
-        <TypedText
-          text={item.text}
-          play={played}
-          className="font-serif text-lg leading-relaxed text-white/95 drop-shadow sm:text-xl"
-          totalMs={550}
-        />
-      </CardChrome>
-      <ActionRail likes={item.likes} comments={item.comments} />
+      <DoubleTapLike onDoubleTap={likeOnDoubleTap}>
+        <CardChrome
+          bg={`linear-gradient(160deg, ${item.author.color}dd, #0b0b12)`}
+          author={item.author}
+          badge={<TypeBadge>Drabble</TypeBadge>}
+        >
+          <h2 className="font-serif text-2xl text-white drop-shadow sm:text-3xl">{item.title}</h2>
+          <TypedText
+            text={item.text}
+            play={played}
+            className="font-serif text-lg leading-relaxed text-white/95 drop-shadow sm:text-xl"
+            totalMs={550}
+          />
+        </CardChrome>
+      </DoubleTapLike>
+      <ActionRail
+        likes={item.likes}
+        comments={item.comments}
+        liked={liked}
+        onToggleLike={toggleLike}
+        onOpenComments={() => setCommentsOpen(true)}
+      />
+      <CommentSheet open={commentsOpen} onClose={() => setCommentsOpen(false)} count={item.comments} />
     </div>
   )
 }
 
 function LongformCard({ item }: { item: LongformItem }) {
   const { ref, played } = useInViewOnce()
+  const { liked, toggleLike, likeOnDoubleTap, commentsOpen, setCommentsOpen } = useCardEngagement()
   return (
     <div ref={ref} className="relative h-full w-full">
-      <CardChrome
-        bg={`linear-gradient(160deg, ${item.author.color}dd, #0b0b12)`}
-        author={item.author}
-        badge={<TypeBadge>{item.title}</TypeBadge>}
-      >
-        <TypedText
-          text={item.intro}
-          play={played}
-          className="font-serif text-lg leading-relaxed text-white/95 drop-shadow sm:text-xl"
-          totalMs={700}
-        />
-        <button
-          type="button"
-          onClick={() => console.log('read more tapped (inert)')}
-          className={cn(
-            'mt-1 w-fit rounded-full bg-white px-4 py-2 font-sans text-sm font-semibold text-ink shadow-lg transition-all duration-500',
-            played ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0',
-          )}
-          style={{ transitionDelay: played ? '650ms' : '0ms' }}
+      <DoubleTapLike onDoubleTap={likeOnDoubleTap}>
+        <CardChrome
+          bg={`linear-gradient(160deg, ${item.author.color}dd, #0b0b12)`}
+          author={item.author}
+          badge={<TypeBadge>{item.title}</TypeBadge>}
         >
-          Read more →
-        </button>
-      </CardChrome>
+          <TypedText
+            text={item.intro}
+            play={played}
+            className="font-serif text-lg leading-relaxed text-white/95 drop-shadow sm:text-xl"
+            totalMs={700}
+          />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              console.log('read more tapped (inert)')
+            }}
+            className={cn(
+              'pointer-events-auto mt-1 w-fit rounded-full bg-white px-4 py-2 font-sans text-sm font-semibold text-ink shadow-lg transition-all duration-500',
+              played ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0',
+            )}
+            style={{ transitionDelay: played ? '650ms' : '0ms' }}
+          >
+            Read more →
+          </button>
+        </CardChrome>
+      </DoubleTapLike>
       {/* fade-to-gradient hinting continued content */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/50 to-transparent" />
-      <ActionRail likes={item.likes} comments={item.comments} />
+      <ActionRail
+        likes={item.likes}
+        comments={item.comments}
+        liked={liked}
+        onToggleLike={toggleLike}
+        onOpenComments={() => setCommentsOpen(true)}
+      />
+      <CommentSheet open={commentsOpen} onClose={() => setCommentsOpen(false)} count={item.comments} />
     </div>
   )
 }
 
 function ChatCard({ item }: { item: ChatItem }) {
   const { ref, played } = useInViewOnce()
+  const { liked, toggleLike, likeOnDoubleTap, commentsOpen, setCommentsOpen } = useCardEngagement()
   return (
     <div ref={ref} className="relative h-full w-full">
-      <div
-        className="relative flex h-full w-full flex-col justify-center overflow-hidden px-5 py-20 sm:px-10"
-        style={{ background: `linear-gradient(160deg, ${item.author.color}bb, #0b0b12)` }}
-      >
-        <div className="absolute inset-0 bg-black/15" />
-        <div className="relative z-10 mx-auto flex w-full max-w-md flex-col gap-4">
-          <TypeBadge>Chat AU · {item.title}</TypeBadge>
-          <ChatBubbles messages={item.messages} participants={item.participants} play={played} />
+      <DoubleTapLike onDoubleTap={likeOnDoubleTap}>
+        <div
+          className="relative flex h-full w-full flex-col justify-center overflow-hidden px-5 py-20 sm:px-10"
+          style={{ background: `linear-gradient(160deg, ${item.author.color}bb, #0b0b12)` }}
+        >
+          <div className="absolute inset-0 bg-black/15" />
+          <div className="relative z-10 mx-auto flex w-full max-w-md flex-col gap-4">
+            <TypeBadge>Chat AU · {item.title}</TypeBadge>
+            <ChatBubbles messages={item.messages} participants={item.participants} play={played} />
+          </div>
+          <div className="absolute bottom-24 left-5 z-20 sm:bottom-8 sm:left-10">
+            <AuthorRow author={item.author} />
+          </div>
         </div>
-        <div className="absolute bottom-8 left-5 z-20 sm:left-10">
-          <AuthorRow author={item.author} />
-        </div>
-      </div>
-      <ActionRail likes={item.likes} comments={item.comments} />
+      </DoubleTapLike>
+      <ActionRail
+        likes={item.likes}
+        comments={item.comments}
+        liked={liked}
+        onToggleLike={toggleLike}
+        onOpenComments={() => setCommentsOpen(true)}
+      />
+      <CommentSheet open={commentsOpen} onClose={() => setCommentsOpen(false)} count={item.comments} />
     </div>
   )
 }

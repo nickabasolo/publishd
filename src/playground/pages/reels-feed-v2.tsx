@@ -1433,7 +1433,7 @@ function CardFooter({
 function CardEntrance({ played, children }: { played: boolean; children: React.ReactNode }) {
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border border-ink/10 bg-paper px-5 py-8 shadow-md transition-all duration-[380ms] ease-out dark:border-white/10 dark:bg-surface-night sm:px-8"
+      className="relative flex min-h-[42vh] flex-col overflow-hidden rounded-2xl border border-ink/10 bg-paper px-5 py-8 shadow-md transition-all duration-[380ms] ease-out dark:border-white/10 dark:bg-surface-night sm:px-8"
       style={{
         opacity: played ? 1 : 0,
         transform: played ? 'translateY(0) scale(1)' : 'translateY(10px) scale(0.97)',
@@ -1475,7 +1475,7 @@ function DrabbleCard({
         ref.current = node
         pager.elRef.current = node
       }}
-      className="relative flex h-full w-full flex-col justify-center bg-surface px-4 py-16 dark:bg-night sm:px-8"
+      className="relative flex h-full w-full flex-col justify-start overflow-hidden bg-surface px-4 pb-16 pt-20 dark:bg-night sm:px-8"
       onTouchStart={pager.onTouchStart}
       onTouchEnd={pager.onTouchEnd}
     >
@@ -1483,7 +1483,7 @@ function DrabbleCard({
         <CardHeader title={item.title} chapter={item.chapter} tags={item.tags} />
         <CardEntrance played={played}>
           <DoubleTapLike onDoubleTap={likeOnDoubleTap}>
-            <div className="relative overflow-hidden">
+            <div className="relative flex h-full flex-col justify-center overflow-hidden">
               <div className="flex" style={pagerTrackStyle(pager)}>
                 {slides.map((slide, i) =>
                   i === 0 ? (
@@ -1573,7 +1573,7 @@ function LongformCard({
         ref.current = node
         pager.elRef.current = node
       }}
-      className="relative flex h-full w-full flex-col justify-center bg-surface px-4 py-16 dark:bg-night sm:px-8"
+      className="relative flex h-full w-full flex-col justify-start overflow-hidden bg-surface px-4 pb-16 pt-20 dark:bg-night sm:px-8"
       onTouchStart={pager.onTouchStart}
       onTouchEnd={pager.onTouchEnd}
     >
@@ -1581,7 +1581,7 @@ function LongformCard({
         <CardHeader title={item.title} chapter={item.chapter} tags={item.tags} />
         <CardEntrance played={played}>
           <DoubleTapLike onDoubleTap={likeOnDoubleTap}>
-            <div className="relative overflow-hidden">
+            <div className="relative flex h-full flex-col justify-center overflow-hidden">
               <div className="flex" style={pagerTrackStyle(pager)}>
                 {slides.map((slide, i) =>
                   i === 0 ? (
@@ -1676,7 +1676,7 @@ function ChatCard({
         ref.current = node
         pager.elRef.current = node
       }}
-      className="relative flex h-full w-full flex-col justify-center bg-surface px-4 py-16 dark:bg-night sm:px-8"
+      className="relative flex h-full w-full flex-col justify-start overflow-hidden bg-surface px-4 pb-16 pt-20 dark:bg-night sm:px-8"
       onTouchStart={pager.onTouchStart}
       onTouchEnd={pager.onTouchEnd}
     >
@@ -1684,7 +1684,7 @@ function ChatCard({
         <CardHeader title={item.title} tags={item.tags} />
         <CardEntrance played={played}>
           <DoubleTapLike onDoubleTap={likeOnDoubleTap}>
-            <div className="relative overflow-hidden">
+            <div className="relative flex h-full flex-col justify-center overflow-hidden">
               <div className="flex" style={pagerTrackStyle(pager)}>
                 {slides.map((slideMessages, i) => (
                   <div key={i} className="w-full min-w-0 shrink-0 transition-opacity duration-300">

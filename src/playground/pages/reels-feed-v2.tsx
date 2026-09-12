@@ -658,25 +658,35 @@ function TypedText({
 }) {
   const words = text.split(' ')
   const step = Math.min(28, totalMs / Math.max(words.length, 1))
-  return (
-    <p className={className}>
-      {words.map((w, i) => (
-        <span
-          key={i}
-          className="inline-block transition-all ease-out"
-          style={{
-            transitionDuration: '260ms',
-            transitionDelay: `${i * step}ms`,
-            opacity: play ? 1 : 0,
-            transform: play ? 'translateY(0)' : 'translateY(6px)',
-          }}
-        >
-          {w}
-          {i < words.length - 1 ? ' ' : ''}
-        </span>
-      ))}
-    </p>
-  )
+  // Render the space between words as its own plain text node (a sibling of
+  // the word spans) rather than trailing content inside an `inline-block`
+  // span. A space that's the *last* child of an inline-block box sits at the
+  // end of that box's own line-wrapping context, so browsers collapse it to
+  // zero width (the classic "inline-block eats trailing whitespace" quirk) —
+  // that both hides the space visually (words run together) and removes the
+  // line-break opportunity between words (text can't wrap, so it overflows
+  // its container instead). A plain text-node space between the spans is
+  // normal inline content, so it renders visibly and gives the line a real
+  // wrap point.
+  const nodes: React.ReactNode[] = []
+  words.forEach((w, i) => {
+    if (i > 0) nodes.push(' ')
+    nodes.push(
+      <span
+        key={i}
+        className="inline-block transition-all ease-out"
+        style={{
+          transitionDuration: '260ms',
+          transitionDelay: `${i * step}ms`,
+          opacity: play ? 1 : 0,
+          transform: play ? 'translateY(0)' : 'translateY(6px)',
+        }}
+      >
+        {w}
+      </span>,
+    )
+  })
+  return <p className={cn('whitespace-normal break-words', className)}>{nodes}</p>
 }
 
 // ---------------------------------------------------------------------------
@@ -1477,7 +1487,7 @@ function DrabbleCard({
               <div className="flex" style={pagerTrackStyle(pager)}>
                 {slides.map((slide, i) =>
                   i === 0 ? (
-                    <div key={i} className="w-full shrink-0">
+                    <div key={i} className="w-full min-w-0 shrink-0">
                       <TypedText
                         text={slide}
                         play={played}
@@ -1488,7 +1498,7 @@ function DrabbleCard({
                   ) : (
                     <p
                       key={i}
-                      className="w-full shrink-0 font-serif text-lg leading-relaxed text-ink transition-opacity duration-300 dark:text-stone-200"
+                      className="w-full min-w-0 shrink-0 whitespace-normal break-words font-serif text-lg leading-relaxed text-ink transition-opacity duration-300 dark:text-stone-200"
                     >
                       {slide}
                     </p>
@@ -1575,7 +1585,7 @@ function LongformCard({
               <div className="flex" style={pagerTrackStyle(pager)}>
                 {slides.map((slide, i) =>
                   i === 0 ? (
-                    <div key={i} className="w-full shrink-0">
+                    <div key={i} className="w-full min-w-0 shrink-0">
                       <TypedText
                         text={slide}
                         play={played}
@@ -1586,7 +1596,7 @@ function LongformCard({
                   ) : (
                     <p
                       key={i}
-                      className="w-full shrink-0 font-serif text-lg leading-relaxed text-ink transition-opacity duration-300 dark:text-stone-200"
+                      className="w-full min-w-0 shrink-0 whitespace-normal break-words font-serif text-lg leading-relaxed text-ink transition-opacity duration-300 dark:text-stone-200"
                     >
                       {slide}
                     </p>
@@ -1677,7 +1687,7 @@ function ChatCard({
             <div className="relative overflow-hidden">
               <div className="flex" style={pagerTrackStyle(pager)}>
                 {slides.map((slideMessages, i) => (
-                  <div key={i} className="w-full shrink-0 transition-opacity duration-300">
+                  <div key={i} className="w-full min-w-0 shrink-0 transition-opacity duration-300">
                     <ChatBubbles
                       messages={slideMessages}
                       participants={item.participants}
@@ -1688,14 +1698,19 @@ function ChatCard({
                 ))}
               </div>
               <NextSlidePeek hasNext={pager.index < slides.length - 1} dragPx={pager.dragPx} accent={item.author.color}>
-                <div className="scale-90">
-                  <ChatBubbles
-                    messages={(slides[pager.index + 1] ?? []).slice(0, 1)}
-                    participants={item.participants}
-                    play
-                    instant
-                  />
-                </div>
+                {(() => {
+                  const nextMsg = (slides[pager.index + 1] ?? [])[0]
+                  if (!nextMsg) return null
+                  const speaker = item.participants[nextMsg.speaker]
+                  return (
+                    <div
+                      className="max-w-full truncate rounded-xl px-2.5 py-1.5 text-xs text-white"
+                      style={{ backgroundColor: speaker?.color ?? '#94a3b8' }}
+                    >
+                      {nextMsg.text}
+                    </div>
+                  )
+                })()}
               </NextSlidePeek>
             </div>
           </DoubleTapLike>

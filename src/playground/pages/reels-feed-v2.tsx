@@ -1315,44 +1315,6 @@ function CommentInputDecoy() {
 }
 
 // ---------------------------------------------------------------------------
-// Next-slide "peek" — replaces the dot pagination entirely. Shows a sliver of
-// the next carousel slide's card at the right edge as the primary affordance
-// that there's more to swipe. Rendered as a scaled/offset ghost of the card
-// that only appears when a next slide exists, and tracks the live drag so it
-// gets pulled into view as the user drags.
-// ---------------------------------------------------------------------------
-
-const PEEK_WIDTH = 28
-
-function NextSlidePeek({
-  hasNext,
-  dragPx,
-  accent,
-  children,
-}: {
-  hasNext: boolean
-  dragPx: number
-  accent: string
-  children: React.ReactNode
-}) {
-  if (!hasNext) return null
-  // Pull the peek further into view as the user drags left (negative dragPx).
-  const pull = Math.max(0, -dragPx)
-  return (
-    <div
-      className="pointer-events-none absolute inset-y-3 z-10 overflow-hidden rounded-2xl border border-ink/10 bg-paper opacity-90 shadow-sm dark:border-white/10 dark:bg-surface-night"
-      style={{
-        right: -PEEK_WIDTH - pull * 0.5,
-        width: PEEK_WIDTH + 40,
-      }}
-    >
-      <div className="h-1.5 w-full" style={{ backgroundColor: accent }} />
-      <div className="p-3 opacity-60">{children}</div>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // The three card types
 // ---------------------------------------------------------------------------
 
@@ -1505,11 +1467,6 @@ function DrabbleCard({
                   ),
                 )}
               </div>
-              <NextSlidePeek hasNext={pager.index < slides.length - 1} dragPx={pager.dragPx} accent={item.author.color}>
-                <p className="font-serif text-sm leading-snug text-ink dark:text-stone-300">
-                  {slides[pager.index + 1]}
-                </p>
-              </NextSlidePeek>
             </div>
           </DoubleTapLike>
           {showReadMore && isLastSlide && (
@@ -1603,11 +1560,6 @@ function LongformCard({
                   ),
                 )}
               </div>
-              <NextSlidePeek hasNext={pager.index < slides.length - 1} dragPx={pager.dragPx} accent={item.author.color}>
-                <p className="font-serif text-sm leading-snug text-ink dark:text-stone-300">
-                  {slides[pager.index + 1]}
-                </p>
-              </NextSlidePeek>
             </div>
           </DoubleTapLike>
           {isLastSlide && (
@@ -1697,21 +1649,6 @@ function ChatCard({
                   </div>
                 ))}
               </div>
-              <NextSlidePeek hasNext={pager.index < slides.length - 1} dragPx={pager.dragPx} accent={item.author.color}>
-                {(() => {
-                  const nextMsg = (slides[pager.index + 1] ?? [])[0]
-                  if (!nextMsg) return null
-                  const speaker = item.participants[nextMsg.speaker]
-                  return (
-                    <div
-                      className="max-w-full truncate rounded-xl px-2.5 py-1.5 text-xs text-white"
-                      style={{ backgroundColor: speaker?.color ?? '#94a3b8' }}
-                    >
-                      {nextMsg.text}
-                    </div>
-                  )
-                })()}
-              </NextSlidePeek>
             </div>
           </DoubleTapLike>
           {showReadMore && isLastSlide && (
